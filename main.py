@@ -2,16 +2,16 @@ import time
 import torch
 import os
 from data import *
-from model import create_unet, train_model, create_lunext, train_lunext_model, save_results, save_results_with_images
+from model import create_unet, train_model, create_lunext, save_results, save_results_with_images
 
 def main():
     """
     主函數 - 支援 UNet 和 LUNeXt 兩種模型的訓練和測試
     """
-    
-    # 配置參數
+
+      # 配置參數
     MODEL_TYPE = "LUNeXt"  # 可選: "UNet" 或 "LUNeXt"
-    MODE = "test"       # 可選: "train" 或 "test"
+    MODE = "train"       # 可選: "train" 或 "test"
     EPOCHS = 100
     BATCH_SIZE = 16
     LEARNING_RATE = 0.001
@@ -44,17 +44,16 @@ def main():
         # 訓練模式
         print(f"\n開始訓練 {MODEL_TYPE} 模型...")
         start_time = time.time()
-        
         if MODEL_TYPE == "UNet":
             model = train_model(
-                train_data, validation_data, 
+                train_data, validation_data, model_type="UNet",
                 epochs=EPOCHS, batch_size=BATCH_SIZE, learning_rate=LEARNING_RATE
             )
             model_filename = f"UNet_model_best.pth"
-            result_filename = f"UNet_result.txt"
+            result_filename = f"UNet_result.txt"        
         else:  # LUNeXt
-            model = train_lunext_model(
-                train_data, validation_data, 
+            model = train_model(
+                train_data, validation_data, model_type="LUNeXt",
                 epochs=EPOCHS, batch_size=BATCH_SIZE, learning_rate=LEARNING_RATE
             )
             model_filename = f"LUNeXt_model_best.pth"
