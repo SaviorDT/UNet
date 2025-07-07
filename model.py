@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.nn.modules.loss import CrossEntropyLoss
 import torch.optim as optim
 from torch.utils.data import DataLoader, TensorDataset
 from tqdm import tqdm
@@ -40,10 +41,10 @@ def create_lunext(in_channels=3, out_channels=1):
     return model
 
 def train_model(train_data, validation_data, model_type="UNet", epochs=50, batch_size=16, learning_rate=0.001, 
-                patience=10, device=None):
+                patience=10, device=None, custom_loss=None):
     """
     訓練模型（支援 UNet 和 LUNeXt）
-    
+
     Args:
         train_data: tuple (train_images, train_masks)
         validation_data: tuple (val_images, val_masks)
@@ -53,7 +54,8 @@ def train_model(train_data, validation_data, model_type="UNet", epochs=50, batch
         learning_rate: 學習率
         patience: 早停耐心值
         device: 訓練設備 (cuda/cpu)
-        
+        custom_loss: 自訂損失函數 (默認為 None)
+
     Returns:
         trained_model: 訓練好的模型
     """
@@ -61,6 +63,18 @@ def train_model(train_data, validation_data, model_type="UNet", epochs=50, batch
     if device is None:
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f"使用設備: {device}")
+    
+    # 獲取 CUDA 設備詳細訊息
+    if torch.cuda.is_available():
+        current_device = torch.cuda.current_device()
+        print(f"CUDA 設備: {torch.cuda.get_device_name(current_device)}")
+        print(f"CUDA 運算能力: {torch.cuda.get_device_capability(current_device)}")
+        print(f"CUDA 記憶體總量: {torch.cuda.get_device_properties(current_device).total_memory / (1024**3):.2f} GB")
+        # 預熱 GPU
+        torch.cuda.empty_cache()
+        warm_tensor = torch.randn(100, 100, device=device)
+        del warm_tensor
+        torch.cuda.empty_cache()
     
     # 準備數據
     train_images, train_masks = train_data
@@ -75,8 +89,31 @@ def train_model(train_data, validation_data, model_type="UNet", epochs=50, batch
     # 創建數據載入器
     train_dataset = TensorDataset(train_images, train_masks)
     val_dataset = TensorDataset(val_images, val_masks)
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
+    
+    # 使用多進程加速數據載入，避免成為訓練瓶頸
+    num_workers = 4  # 可根據 CPU 核心數調整
+    pin_memory = True if torch.cuda.is_available() else False
+    prefetch_factor = 2  # 預取因子: 預取 num_workers * prefetch_factor 個樣本
+    persistent_workers = True  # 保持 worker 進程活著，避免每個 epoch 重新創建
+    
+    train_loader = DataLoader(
+        train_dataset, 
+        batch_size=batch_size, 
+        shuffle=True, 
+        num_workers=num_workers, 
+        pin_memory=pin_memory,
+        prefetch_factor=prefetch_factor,
+        persistent_workers=persistent_workers
+    )
+    val_loader = DataLoader(
+        val_dataset, 
+        batch_size=batch_size, 
+        shuffle=False,
+        num_workers=num_workers, 
+        pin_memory=pin_memory,
+        prefetch_factor=prefetch_factor,
+        persistent_workers=persistent_workers
+    )
     
     # 創建模型
     if model_type == "UNet":
@@ -89,19 +126,26 @@ def train_model(train_data, validation_data, model_type="UNet", epochs=50, batch
     model = model.to(device)
     
     # 定義損失函數和優化器
-    criterion = nn.BCEWithLogitsLoss()  # 適用於二分類分割
+    if custom_loss == "self_reg":
+        criterion = SelfRegLoss()
+    else:
+        criterion = nn.BCEWithLogitsLoss()  # 適用於二分類分割
+
     optimizer = optim.Adam(model.parameters(), lr=learning_rate)
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', patience=5, factor=0.5)
-    
-    # 訓練歷史記錄
+      # 訓練歷史記錄
     train_losses = []
     val_losses = []
     best_val_loss = float('inf')
     patience_counter = 0
     
+    # 啟用混合精度訓練 (Mixed Precision)以加速計算
+    scaler = torch.amp.GradScaler('cuda') if torch.cuda.is_available() else None
+    
     print(f"開始訓練 {model_type} 模型...")
     print(f"訓練樣本數: {len(train_images)}, 驗證樣本數: {len(val_images)}")
     print(f"批次大小: {batch_size}, 學習率: {learning_rate}")
+    print(f"混合精度訓練: {'啟用' if scaler else '停用'}")
     print("-" * 50)
     
     for epoch in range(epochs):
@@ -111,24 +155,47 @@ def train_model(train_data, validation_data, model_type="UNet", epochs=50, batch
         train_progress = tqdm(train_loader, desc=f'Epoch {epoch+1}/{epochs} [Train]', leave=False)
         
         for batch_idx, (images, masks) in enumerate(train_progress):
-            images = images.to(device)
-            masks = masks.to(device)
+            images = images.to(device, non_blocking=True)  # 使用non_blocking加速數據傳輸
+            masks = masks.to(device, non_blocking=True)
             
-            # 前向傳播
+            # 前向傳播 (使用混合精度)
             optimizer.zero_grad()
-            outputs = model(images)
-            loss = criterion(outputs, masks)
             
-            # 反向傳播
-            loss.backward()
-            optimizer.step()
+            if scaler:  # 使用混合精度 (float16)
+                with torch.amp.autocast('cuda'):
+                    outputs = model(images)
+                    # 如果使用自訂損失函數，傳入中間層特徵
+                    if custom_loss == "self_reg":
+                        loss = criterion(outputs, masks, model.intermediate_features)
+                    else:
+                        loss = criterion(outputs, masks)
+                
+                # 混合精度反向傳播
+                scaler.scale(loss).backward()
+                scaler.step(optimizer)
+                scaler.update()
+            else:  # 常規訓練 (float32)
+                outputs = model(images)
+                # 如果使用自訂損失函數，傳入中間層特徵
+                if custom_loss == "self_reg":
+                    loss = criterion(outputs, masks, model.intermediate_features)
+                else:
+                    loss = criterion(outputs, masks)
+                
+                loss.backward()
+                optimizer.step()
             
             epoch_train_loss += loss.item()
             
+            # 釋放一些記憶體
+            if batch_idx % 5 == 0 and torch.cuda.is_available():
+                torch.cuda.empty_cache()
+                
             # 更新進度條
             train_progress.set_postfix({
                 'Loss': f'{loss.item():.4f}',
-                'Avg Loss': f'{epoch_train_loss/(batch_idx+1):.4f}'
+                'Avg Loss': f'{epoch_train_loss/(batch_idx+1):.4f}',
+                'LR': f'{optimizer.param_groups[0]["lr"]:.6f}'
             })
         
         avg_train_loss = epoch_train_loss / len(train_loader)
@@ -145,7 +212,13 @@ def train_model(train_data, validation_data, model_type="UNet", epochs=50, batch
                 masks = masks.to(device)
                 
                 outputs = model(images)
-                loss = criterion(outputs, masks)
+                
+                # 如果使用自訂損失函數，傳入中間層特徵
+                if custom_loss == "self_reg":
+                    loss = criterion(outputs, masks, model.intermediate_features)
+                else:
+                    loss = criterion(outputs, masks)
+                
                 epoch_val_loss += loss.item()
                 
                 # 更新進度條
@@ -529,3 +602,216 @@ def save_results_with_images(model, test_data, train_time, filepath, model_name=
     
     # 然後保存預測圖像
     save_prediction_images(model, test_data, output_folder="predictions", model_name=model_name)
+
+class SelfRegLoss(nn.Module):
+    def __init__(self):
+        """
+        自定義損失函數類，支持 Dice Loss 和中間層特徵組合
+        優化批次處理和 GPU 效率，加強記憶體管理
+        """
+        super(SelfRegLoss, self).__init__()
+        self.ce_loss_fn = CrossEntropyLoss()
+        # 清除 CUDA 快取以確保初始化時記憶體乾淨
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+
+    def dice_loss(self, predictions, targets, smooth=1e-6):
+        """
+        計算 Dice Loss - 向量化處理以提高效率
+
+        Args:
+            predictions: 模型的預測結果
+            targets: 真實標籤
+            smooth: 平滑因子
+
+        Returns:
+            dice_loss: Dice Loss 值
+        """
+        # 確保 sigmoid 運算在正確的設備上進行
+        predictions = torch.sigmoid(predictions)
+        
+        # 直接使用批次級矩陣操作
+        intersection = torch.sum(predictions * targets, dim=[1, 2, 3])
+        union = torch.sum(predictions * predictions, dim=[1, 2, 3]) + torch.sum(targets * targets, dim=[1, 2, 3])
+        
+        # 批次級 dice 係數
+        dice_coef = (2. * intersection + smooth) / (union + smooth)
+        
+        # 取批次平均值
+        return 1 - torch.mean(dice_coef)
+
+    def forward(self, predictions, targets, intermediate_features):
+        """
+        計算損失並支持 backward
+
+        Args:
+            predictions: 模型的預測結果
+            targets: 真實標籤
+            intermediate_features: 中間層特徵列表
+
+        Returns:
+            loss: 計算出的損失值
+        """
+
+        # 使用 CUDA 自動混合精度計算主損失
+        with torch.amp.autocast('cuda', enabled=torch.cuda.is_available()):
+            ce_loss = self.ce_loss_fn(predictions, targets)
+            dice_loss = self.dice_loss(predictions, targets)
+        
+        # 為了節省記憶體，使用 no_grad 計算輔助損失
+        # 這樣可以避免保存中間計算的梯度，顯著減少記憶體使用
+        with torch.no_grad():
+            lsrc = self.LSRC(intermediate_features, intermediate_features[-1])
+            lifd = self.LIFD(intermediate_features)
+            
+            # 轉換為純量值，避免保存計算圖
+            lsrc_value = lsrc.item()
+            lifd_value = lifd.item()
+            
+        # 使用純量值合併損失，避免梯度傳播到輔助損失
+        loss = 0.4 * ce_loss + 0.6 * dice_loss + lsrc_value * 0.015 + lifd_value * 0.015
+
+        del predictions, targets, intermediate_features
+        
+        # 釋放不需要的中間變數
+        torch.cuda.empty_cache()
+        
+        return loss
+        
+    def LSRC(self, intermediate_features, final_layer):
+        """
+        LSRC (Layer-wise Self-Regularization Comparison) 函數
+        批次化處理以提高效率
+
+        Args:
+            intermediate_features: 中間層特徵列表
+            final_layer: 最後一層特徵
+
+        Returns:
+            lsrc_loss: LSRC 損失值
+        """
+        if len(intermediate_features) <= 1:
+            # 確保 final_detached 被初始化，即使中間層特徵數量不足
+            final_detached = final_layer.detach()
+            return torch.tensor(0.0, device=final_layer.device)
+        
+        lsrc_loss = 0
+        # 批次處理中間層
+        with torch.amp.autocast('cuda', enabled=torch.cuda.is_available()):
+            # 限制處理的層數，減少記憶體使用
+            indices_to_process = list(range(0, len(intermediate_features) - 1))
+            # 將 final_layer 分離一次，避免重複操作和記憶體浪費
+            final_detached = final_layer.detach()
+            
+            for idx in indices_to_process:
+                feature = intermediate_features[idx]
+                
+                # 使用 detach 分離特徵，避免保存梯度
+                feature_detached = feature.detach()
+                
+                # 驗證特徵是否在相同設備
+                if feature_detached.device != final_detached.device:
+                    feature_detached = feature_detached.to(final_detached.device)
+                
+                # 使用自適應池化調整特徵大小
+                pooled_final_layer = F.adaptive_avg_pool2d(final_detached, feature_detached.shape[2:])
+                
+                # 處理通道數不同的情況
+                if feature_detached.size(1) != pooled_final_layer.size(1):
+                    # 找出較小的通道數
+                    min_channels = min(feature_detached.size(1), pooled_final_layer.size(1))
+                    # 隨機選擇通道，確保兩者通道數相同
+                    # 使用不同的隨機種子，避免每次選擇相同的通道子集
+                    # 但在同一批次內保持一致性
+                    seed = hash(str(idx) + "feature") % 10000
+                    
+                    if feature_detached.size(1) > min_channels:
+                        torch.manual_seed(seed)
+                        indices = torch.randperm(feature_detached.size(1))[:min_channels].to(feature_detached.device)
+                        feature_channels = torch.index_select(feature_detached, 1, indices)
+                    else:
+                        feature_channels = feature_detached
+                    
+                    if pooled_final_layer.size(1) > min_channels:
+                        torch.manual_seed(seed + 1)  # 使用不同的種子
+                        indices = torch.randperm(pooled_final_layer.size(1))[:min_channels].to(pooled_final_layer.device)
+                        pooled_channels = torch.index_select(pooled_final_layer, 1, indices)
+                    else:
+                        pooled_channels = pooled_final_layer
+                else:
+                    # 通道數相同，直接使用
+                    feature_channels = feature_detached
+                    pooled_channels = pooled_final_layer
+                
+                # 使用向量化操作計算損失
+                l2_norm = F.mse_loss(feature_channels, pooled_channels)
+                lsrc_loss += l2_norm
+                
+                # 釋放記憶體
+                del feature_detached, pooled_final_layer
+                del feature_channels, pooled_channels
+                torch.cuda.empty_cache()
+        
+        return lsrc_loss / max(1, len(intermediate_features) - 1)
+    
+    def LIFD(self, intermediate_features):
+        """
+        LIFD (Layer-wise Intermediate Feature Decomposition) 函數
+        優化批次處理效率
+
+        Args:
+            intermediate_features: 中間層特徵列表
+
+        Returns:
+            lifd_loss: LIFD 損失值
+        """
+        if not intermediate_features or len(intermediate_features) <= 1:
+            # 處理空列表或只有一個元素的情況
+            return torch.tensor(0.0, device=intermediate_features[0].device if intermediate_features else 'cpu')
+        
+        lifd_loss = 0
+        
+        indices_to_process = list(range(0, len(intermediate_features) - 1))
+        
+        # 更高效的批次處理
+        with torch.amp.autocast('cuda', enabled=torch.cuda.is_available()):
+            for idx in indices_to_process:
+                feature = intermediate_features[idx]
+                # 分離特徵，避免保存梯度
+                feature_detached = feature.detach()
+                
+                # 使用張量操作進行正規化和排序
+                # 歸一化特徵（跨空間維度）
+                norm = torch.norm(feature_detached, p=2, dim=(2, 3), keepdim=True)
+                norm_features = feature_detached / (norm + 1e-8)
+                
+                # 計算通道重要性
+                importance = norm_features.mean([0, 2, 3])
+                
+                # 排序通道
+                sorted_indices = torch.argsort(importance, descending=True)
+                
+                # 重新排列特徵
+                f_s = torch.index_select(feature_detached, 1, sorted_indices)
+                
+                # 分割特徵
+                mid_point = f_s.shape[1] // 2
+                
+                # 確保有足夠的通道進行分割
+                if mid_point > 0:
+                    # 計算分解損失
+                    first_half = f_s[:, :mid_point]
+                    second_half = f_s[:, mid_point:2*mid_point] if 2*mid_point <= f_s.shape[1] else f_s[:, mid_point:]
+                    
+                    intra_fd_loss = F.mse_loss(first_half, second_half)
+                    lifd_loss += intra_fd_loss
+                    
+                    # 釋放記憶體
+                    del first_half, second_half
+                
+                # 釋放記憶體
+                del feature_detached, norm, norm_features, importance, sorted_indices, f_s
+                torch.cuda.empty_cache()
+        
+        # 防止除以零
+        return lifd_loss / max(1, len(intermediate_features) - 1)

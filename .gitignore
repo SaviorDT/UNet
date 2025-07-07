@@ -4,4 +4,6 @@ data
 predictions
 *.pth
 *.txt
+*.csv
 !requirements.txt
+.history

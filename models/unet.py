@@ -80,6 +80,8 @@ class UNet(nn.Module):
         # 激活函數
         self.relu = nn.ReLU(inplace=True)
         
+        self.intermediate_features = []  # 用於存儲中間層特徵
+        
     def forward(self, x):
         """
         前向傳播
@@ -89,31 +91,42 @@ class UNet(nn.Module):
             
         Returns:
             輸出分割結果, 形狀為 (batch_size, out_channels, height, width)
-        """        # Encoder (下採樣路徑)
+        """
+        self.intermediate_features = []  # 每次前向傳播清空中間層特徵
+
         # 第一層: Conv -> BN -> ReLU -> Conv -> BN -> ReLU -> Pool
         conv1 = self.relu(self.bn1_1(self.conv1_1(x)))
+        self.intermediate_features.append(conv1.clone())
         conv1 = self.relu(self.bn1_2(self.conv1_2(conv1)))
+        self.intermediate_features.append(conv1.clone())
         pool1 = self.pool(conv1)
-        
+
         # 第二層
         conv2 = self.relu(self.bn2_1(self.conv2_1(pool1)))
+        self.intermediate_features.append(conv2.clone())
         conv2 = self.relu(self.bn2_2(self.conv2_2(conv2)))
+        self.intermediate_features.append(conv2.clone())
         pool2 = self.pool(conv2)
-        
+
         # 第三層
         conv3 = self.relu(self.bn3_1(self.conv3_1(pool2)))
+        self.intermediate_features.append(conv3.clone())
         conv3 = self.relu(self.bn3_2(self.conv3_2(conv3)))
+        self.intermediate_features.append(conv3.clone())
         pool3 = self.pool(conv3)
-        
+
         # 第四層
         conv4 = self.relu(self.bn4_1(self.conv4_1(pool3)))
+        self.intermediate_features.append(conv4.clone())
         conv4 = self.relu(self.bn4_2(self.conv4_2(conv4)))
+        self.intermediate_features.append(conv4.clone())
         pool4 = self.pool(conv4)
-        
+
         # 底部 (Bridge)
         conv5 = self.relu(self.bn5_1(self.conv5_1(pool4)))
         conv5 = self.relu(self.bn5_2(self.conv5_2(conv5)))
-          # Decoder (上採樣路徑)
+
+        # Decoder (上採樣路徑)
         # 第一次上採樣: UpConv -> Concatenation -> Conv -> BN -> ReLU -> Conv -> BN -> ReLU
         up1 = self.upconv1(conv5)
         # 確保尺寸匹配
@@ -122,24 +135,30 @@ class UNet(nn.Module):
         # Skip connection + concatenation
         merge1 = torch.cat([conv4, up1], dim=1)
         conv_up1 = self.relu(self.bn_up1_1(self.conv_up1_1(merge1)))
+        self.intermediate_features.append(conv_up1.clone())
         conv_up1 = self.relu(self.bn_up1_2(self.conv_up1_2(conv_up1)))
-        
+        self.intermediate_features.append(conv_up1.clone())
+
         # 第二次上採樣
         up2 = self.upconv2(conv_up1)
         if up2.size() != conv3.size():
             up2 = F.interpolate(up2, size=conv3.shape[2:], mode='bilinear', align_corners=False)
         merge2 = torch.cat([conv3, up2], dim=1)
         conv_up2 = self.relu(self.bn_up2_1(self.conv_up2_1(merge2)))
+        self.intermediate_features.append(conv_up2.clone())
         conv_up2 = self.relu(self.bn_up2_2(self.conv_up2_2(conv_up2)))
-        
+        self.intermediate_features.append(conv_up2.clone())
+
         # 第三次上採樣
         up3 = self.upconv3(conv_up2)
         if up3.size() != conv2.size():
             up3 = F.interpolate(up3, size=conv2.shape[2:], mode='bilinear', align_corners=False)
         merge3 = torch.cat([conv2, up3], dim=1)
         conv_up3 = self.relu(self.bn_up3_1(self.conv_up3_1(merge3)))
+        self.intermediate_features.append(conv_up3.clone())
         conv_up3 = self.relu(self.bn_up3_2(self.conv_up3_2(conv_up3)))
-        
+        self.intermediate_features.append(conv_up3.clone())
+
         # 第四次上採樣
         up4 = self.upconv4(conv_up3)
         if up4.size() != conv1.size():
@@ -147,8 +166,9 @@ class UNet(nn.Module):
         merge4 = torch.cat([conv1, up4], dim=1)
         conv_up4 = self.relu(self.bn_up4_1(self.conv_up4_1(merge4)))
         conv_up4 = self.relu(self.bn_up4_2(self.conv_up4_2(conv_up4)))
-          # 最終輸出 (不使用 BN 和 ReLU，因為這是最終輸出層)
+        self.intermediate_features.append(conv_up4.clone())
+
+        # 最終輸出 (不使用 BN 和 ReLU，因為這是最終輸出層)
         output = self.final_conv(conv_up4)
         
         return output
-        
