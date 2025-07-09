@@ -2,6 +2,7 @@ import os
 import numpy as np
 from PIL import Image
 from tqdm import tqdm
+from sklearn.model_selection import KFold
 
 def load_images_generic(folder_path, target_size, file_extensions=('.jpg', '.jpeg', '.png'), 
                        file_filter=None, sort_key=None, color_mode='RGB', normalize=True):
@@ -147,6 +148,32 @@ def split_dataset(images, masks, train_ratio=0.7, val_ratio=0.15, test_ratio=0.1
     
     return train_data, validation_data, test_data
 
+def split_dataset_kfold(images, masks, k_fold=5, times=3):
+    # K折交叉驗證模式
+    
+    # 定義生成器函數
+    def k_fold_generator():
+        """生成器函數，每次返回一個交叉驗證分割"""
+        for t in range(times):
+            # 每次使用不同的隨機種子
+            kf = KFold(n_splits=k_fold, shuffle=True, random_state=42+t)
+            
+            for fold_idx, (train_index, val_index) in enumerate(kf.split(images)):
+                # 只對訓練數據集進行交叉驗證分割
+                fold_train_images = images[train_index]
+                fold_train_masks = masks[train_index]
+                fold_val_images = images[val_index]
+                fold_val_masks = masks[val_index]
+                
+                train_data_fold = (fold_train_images, fold_train_masks)
+                val_data_fold = (fold_val_images, fold_val_masks)
+                
+                # 生成當前折的數據
+                yield train_data_fold, val_data_fold, t, fold_idx
+    
+    print(f"K折交叉驗證數據生成器已準備! 將進行{times}次{k_fold}折交叉驗證")
+    return k_fold_generator()
+
 def extract_numeric_sort_key(filename):
     """
     從檔案名稱中提取數字部分用於排序
@@ -169,43 +196,6 @@ def extract_numeric_sort_key(filename):
     else:
         # 如果沒有找到數字，返回一個大數和檔案名稱
         return (float('inf'), filename)
-
-def create_paired_sort_key(base_pattern, anno_pattern='_anno'):
-    """
-    創建一個排序鍵函數，用於配對的圖像和標註檔案
-    確保 train_1.bmp 和 train_1_anno.bmp 排序在一起
-    
-    Args:
-        base_pattern: 基礎檔案的模式 (例如 'train')
-        anno_pattern: 標註檔案的標識 (例如 '_anno')
-    
-    Returns:
-        function: 排序鍵函數
-    """
-    def sort_key(filename):
-        import re
-        
-        # 移除副檔名
-        name_without_ext = filename.rsplit('.', 1)[0]
-        
-        # 檢查是否為標註檔案
-        is_anno = anno_pattern in filename
-        
-        # 提取數字
-        match = re.search(r'(\d+)', filename)
-        if match:
-            number = int(match.group(1))
-            # 標註檔案排在原始檔案後面
-            return (number, 1 if is_anno else 0, filename)
-        else:
-            return (float('inf'), 1 if is_anno else 0, filename)
-    
-    return sort_key
-
-# 使用範例:
-# 對於 train_1.bmp, train_1_anno.bmp 這樣的檔案
-# sort_key = create_paired_sort_key('train', '_anno')
-# image_files.sort(key=sort_key)
 
 def create_simple_numeric_sort_key():
     """

@@ -14,13 +14,16 @@ def main():
 
     # 配置參數
     MODEL_TYPE = "UNet"  # 可選: "UNet" 或 "LUNeXt"
-    MODE = "test"     # 可選: "train", "test", 或 "k_fold"
+    MODE = "k_fold"     # 可選: "train", "test", 或 "k_fold"
     DATASET = "Glas"    # 可選: "ISIC2018" 或 "Glas"
     DATASET_FOLDER = "./data/" + DATASET  # 數據集根目錄
     EPOCHS = 100
     BATCH_SIZE = 8     # 使用優化後的代碼可以支援更大批次，對小數據集 8-16 是合理範圍
     LEARNING_RATE = 0.00015
     LOSS_TYPE = "self_reg"  # 可選: None 或 "self_reg"
+    # 交叉驗證參數
+    K_FOLD = 5          # K折交叉驗證的折數
+    TIMES = 3           # 重複K折交叉驗證的次數
     
     # 顯示CUDA信息
     if torch.cuda.is_available():
@@ -44,10 +47,6 @@ def main():
         elif MODEL_TYPE == "UNet" and total_vram_gb < 4:
             print(f"警告: UNet 模型在 {total_vram_gb:.1f}GB VRAM 上可能需要較小的批次大小")
             print(f"建議: 考慮將 BATCH_SIZE 調整為 8 或更低")
-    
-    # 交叉驗證參數
-    K_FOLD = 5          # K折交叉驗證的折數
-    TIMES = 3           # 重複K折交叉驗證的次數
     
     print(f"模式: {MODE}")
     print(f"模型類型: {MODEL_TYPE}")

@@ -386,7 +386,7 @@ def save_results(model, test_data, train_time, filepath):
     print("開始評估模型...")
     
     with torch.no_grad():
-        batch_size = 16
+        batch_size = 8
         num_batches = (len(test_images) + batch_size - 1) // batch_size
         
         for i in range(0, len(test_images), batch_size):
@@ -503,7 +503,7 @@ def save_prediction_images(model, test_data, output_folder="predictions", model_
     test_masks_tensor = torch.FloatTensor(test_masks).permute(0, 3, 1, 2).to(device)
     
     with torch.no_grad():
-        batch_size = 16
+        batch_size = 8
         saved_count = 0
         
         # 使用 tqdm 顯示保存進度

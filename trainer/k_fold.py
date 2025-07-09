@@ -8,9 +8,11 @@ from data_helpers.Glas import load_data
 from model import create_unet, create_lunext, train_model
 import copy
 from torch.utils.data import DataLoader, TensorDataset
+import gc
+from data_helpers.utils import split_dataset_kfold
 
-def train_kfold_glas(model_type="LUNeXt", k_fold=5, times=3, folder="./data/Glas", 
-                    target_size=(224, 224), epochs=100, batch_size=16, learning_rate=0.001,
+def train_kfold_glas(model_type="UNet", k_fold=5, times=3, folder="./data/Glas", 
+                    target_size=(224, 224), epochs=100, batch_size=8, learning_rate=0.001,
                     eval_batch_size=4, custom_loss=None):
     """
     對Glas數據集進行K次K折交叉驗證訓練
@@ -61,20 +63,18 @@ def train_kfold_glas(model_type="LUNeXt", k_fold=5, times=3, folder="./data/Glas
         print(f"GPU 記憶體狀態: {torch.cuda.memory_allocated()/1024**3:.2f} GB / {torch.cuda.max_memory_allocated()/1024**3:.2f} GB")
     
     # 使用生成器獲取k折交叉驗證數據
-    k_fold_gen = load_data(folder=folder, target_size=target_size, k_fold=k_fold, times=times)
+    origin_train_data, _, origin_test_data = load_data(folder=folder, target_size=target_size)
+    origin_train_image, origin_train_mask = origin_train_data
+    k_fold_gen = split_dataset_kfold(origin_train_image, origin_train_mask, k_fold=k_fold, times=times)
     
     # 保存測試數據以便最後的評估
-    test_data_for_final = None
+    test_data_for_final = origin_test_data
     
     # 遍歷每一次交叉驗證的每一折
-    for train_data, val_data, test_data, t, fold_idx in k_fold_gen:
-        # 保存一份測試數據用於最終評估
-        if test_data_for_final is None:
-            test_data_for_final = test_data
+    for train_data, val_data, t, fold_idx in k_fold_gen:
         print(f"\n----- 第 {t+1} 次交叉驗證, 第 {fold_idx+1}/{k_fold} 折 -----")
         
         # 重啟 Python 垃圾回收
-        import gc
         gc.collect()
         
         # 強制清理 GPU 記憶體並重置統計資訊
@@ -84,14 +84,14 @@ def train_kfold_glas(model_type="LUNeXt", k_fold=5, times=3, folder="./data/Glas
             print(f"訓練前 GPU 記憶體狀態: {torch.cuda.memory_allocated()/1024**3:.2f} GB / {torch.cuda.max_memory_allocated()/1024**3:.2f} GB")
             
             # 檢查 GPU 溫度 (如果可能)
-            try:
-                import pynvml
-                pynvml.nvmlInit()
-                handle = pynvml.nvmlDeviceGetHandleByIndex(0)
-                temp = pynvml.nvmlDeviceGetTemperature(handle, pynvml.NVML_TEMPERATURE_GPU)
-                print(f"GPU 溫度: {temp}°C")
-            except:
-                print("無法檢查 GPU 溫度")
+            # try:
+            #     import pynvml
+            #     pynvml.nvmlInit()
+            #     handle = pynvml.nvmlDeviceGetHandleByIndex(0)
+            #     temp = pynvml.nvmlDeviceGetTemperature(handle, pynvml.NVML_TEMPERATURE_GPU)
+            #     print(f"GPU 溫度: {temp}°C")
+            # except:
+            #     print("無法檢查 GPU 溫度")
         
         # 訓練模型 (添加自動批次大小縮放)
         print(f"訓練 {model_type} 模型...")
@@ -103,20 +103,21 @@ def train_kfold_glas(model_type="LUNeXt", k_fold=5, times=3, folder="./data/Glas
                 device=device, custom_loss=custom_loss
             )
         except RuntimeError as e:
-            if "out of memory" in str(e):
-                print(f"GPU 記憶體不足，嘗試減小批次大小...")
-                # 嘗試減小批次大小重新訓練
-                reduced_batch = max(1, batch_size // 2)
-                print(f"使用較小的批次大小: {reduced_batch}")
-                if torch.cuda.is_available():
-                    torch.cuda.empty_cache()
-                model = train_model(
-                    train_data, val_data, model_type=model_type,
-                    epochs=epochs, batch_size=reduced_batch, learning_rate=learning_rate,
-                    device=device, custom_loss=custom_loss
-                )
-            else:
-                raise e
+            raise e
+            # if "out of memory" in str(e):
+            #     print(f"GPU 記憶體不足，嘗試減小批次大小...")
+            #     # 嘗試減小批次大小重新訓練
+            #     reduced_batch = max(1, batch_size // 2)
+            #     print(f"使用較小的批次大小: {reduced_batch}")
+            #     if torch.cuda.is_available():
+            #         torch.cuda.empty_cache()
+            #     model = train_model(
+            #         train_data, val_data, model_type=model_type,
+            #         epochs=epochs, batch_size=reduced_batch, learning_rate=learning_rate,
+            #         device=device, custom_loss=custom_loss
+            #     )
+            # else:
+            #     raise e
         
         train_time = time.time() - start_time
         print(f"訓練完成！耗時: {train_time:.2f} 秒")
@@ -239,9 +240,6 @@ def evaluate_model(model, data, device, batch_size=8):
     # 確保模型在評估模式
     model.eval()
     
-    # 使用較小的批次進行推理（提高計算效率同時減少峰值記憶體使用）
-    actual_batch_size = min(batch_size, 16)  # 不使用過大的批次
-    
     # 轉換為 torch tensors (預處理數據以提高效率)
     try:
         # 如果設備是 cuda，使用更激進的預處理和內存管理
@@ -261,7 +259,7 @@ def evaluate_model(model, data, device, batch_size=8):
             # 使用無工作進程的 DataLoader 避免 worker 泄漏
             eval_loader = DataLoader(
                 eval_dataset, 
-                batch_size=actual_batch_size, 
+                batch_size=batch_size, 
                 shuffle=False,
                 num_workers=0,  # 避免工作進程累積
                 pin_memory=torch.cuda.is_available()
@@ -293,7 +291,6 @@ def evaluate_model(model, data, device, batch_size=8):
             del chunk_images, images_tensor, eval_dataset, eval_loader, chunk_predictions
             
             # 強制垃圾回收
-            import gc
             gc.collect()
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
@@ -306,27 +303,27 @@ def evaluate_model(model, data, device, batch_size=8):
     
     except Exception as e:
         print(f"分批評估過程中出錯: {e}")
-        print("嘗試使用更簡單的評估方法...")
+        # print("嘗試使用更簡單的評估方法...")
         
-        # 備用方案: 使用較簡單的方法進行推理
-        images_tensor = torch.FloatTensor(images).permute(0, 3, 1, 2)
+        # # 備用方案: 使用較簡單的方法進行推理
+        # images_tensor = torch.FloatTensor(images).permute(0, 3, 1, 2)
         
-        # 還是分批處理，但是更簡單的結構
-        eval_dataset = TensorDataset(images_tensor)
-        eval_loader = DataLoader(eval_dataset, batch_size=actual_batch_size, shuffle=False)
+        # # 還是分批處理，但是更簡單的結構
+        # eval_dataset = TensorDataset(images_tensor)
+        # eval_loader = DataLoader(eval_dataset, batch_size=batch_size, shuffle=False)
         
-        all_predictions = []
-        with torch.no_grad():
-            for batch_images in eval_loader:
-                batch_images = batch_images[0].to(device)
-                outputs = model(batch_images)
-                outputs = torch.sigmoid(outputs)
-                batch_predictions = (outputs > 0.5).float().cpu().numpy()
-                all_predictions.append(batch_predictions)
-                del batch_images, outputs
+        # all_predictions = []
+        # with torch.no_grad():
+        #     for batch_images in eval_loader:
+        #         batch_images = batch_images[0].to(device)
+        #         outputs = model(batch_images)
+        #         outputs = torch.sigmoid(outputs)
+        #         batch_predictions = (outputs > 0.5).float().cpu().numpy()
+        #         all_predictions.append(batch_predictions)
+        #         del batch_images, outputs
         
-        predictions = np.concatenate(all_predictions, axis=0)
-        del all_predictions, images_tensor, eval_dataset
+        # predictions = np.concatenate(all_predictions, axis=0)
+        # del all_predictions, images_tensor, eval_dataset
     
     # 轉換 masks 為 numpy (必要時進行維度調整)
     masks_np = masks.squeeze() if masks.ndim > 2 else masks
@@ -337,7 +334,6 @@ def evaluate_model(model, data, device, batch_size=8):
     
     # 清理剩余中間變量
     del predictions, predictions_np, masks_np
-    import gc
     gc.collect()
     
     return metrics
