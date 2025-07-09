@@ -4,7 +4,7 @@ import os
 import torch.cuda
 from data import load_data
 from model import create_unet, train_model, create_lunext, save_results_with_images
-from trainer.k_fold import train_kfold_glas
+from trainer.k_fold import train_kfold
 
 def main():
     """
@@ -15,7 +15,7 @@ def main():
     # 配置參數
     MODEL_TYPE = "UNet"  # 可選: "UNet" 或 "LUNeXt"
     MODE = "k_fold"     # 可選: "train", "test", 或 "k_fold"
-    DATASET = "Glas"    # 可選: "ISIC2018" 或 "Glas"
+    DATASET = "my_proj1"    # 可選: "ISIC2018" 或 "Glas"
     DATASET_FOLDER = "./data/" + DATASET  # 數據集根目錄
     EPOCHS = 100
     BATCH_SIZE = 8     # 使用優化後的代碼可以支援更大批次，對小數據集 8-16 是合理範圍
@@ -59,10 +59,11 @@ def main():
     if MODE == "k_fold":
         # K-fold 交叉驗證模式
         print(f"\n開始 {TIMES} 次 {K_FOLD} 折交叉驗證訓練 - 使用 {MODEL_TYPE} 模型")
-        results_df, best_model_path = train_kfold_glas(
+        results_df, best_model_path = train_kfold(
             model_type=MODEL_TYPE, 
             k_fold=K_FOLD, 
             times=TIMES, 
+            dataset=DATASET,
             folder=DATASET_FOLDER, 
             epochs=EPOCHS, 
             batch_size=BATCH_SIZE, 
@@ -103,7 +104,7 @@ def main():
         return
     
     # 載入數據
-    if MODE == "train":
+    elif MODE == "train":
         # 訓練模式：載入完整數據集
         train_data, validation_data, test_data = load_data(
             dataset_name=DATASET,
