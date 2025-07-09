@@ -91,7 +91,7 @@ def train_model(train_data, validation_data, model_type="UNet", epochs=50, batch
     val_dataset = TensorDataset(val_images, val_masks)
     
     # 使用多進程加速數據載入，避免成為訓練瓶頸
-    num_workers = 4  # 可根據 CPU 核心數調整
+    num_workers = 3  # 可根據 CPU 核心數調整
     pin_memory = True if torch.cuda.is_available() else False
     prefetch_factor = 2  # 預取因子: 預取 num_workers * prefetch_factor 個樣本
     persistent_workers = True  # 保持 worker 進程活著，避免每個 epoch 重新創建

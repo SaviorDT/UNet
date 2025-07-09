@@ -17,17 +17,21 @@ def main():
     MODE = "k_fold"     # 可選: "train", "test", 或 "k_fold"
     DATASET = "my_proj1"    # 可選: "ISIC2018" 或 "Glas"
     DATASET_FOLDER = "./data/" + DATASET  # 數據集根目錄
-    TARGET_SIZE = (128, 128) if DATASET != "Glas" else (224, 224)  # 根據數據集調整目標大小
+    if DATASET == "ISIC2018":
+        TARGET_SIZE = (128, 128)
+        BATCH_SIZE = 16
+    elif DATASET == "Glas":
+        TARGET_SIZE = (224, 224)
+        BATCH_SIZE = 8
+    elif DATASET == "my_proj1":
+        TARGET_SIZE = (640, 480)
+        BATCH_SIZE = 2
     EPOCHS = 100
-    BATCH_SIZE = 16 if DATASET == "ISIC2018" else 8  # 根據數據集調整批次大小
     LEARNING_RATE = 0.00015
     LOSS_TYPE = None  # 可選: None 或 "self_reg"
     # 交叉驗證參數
     K_FOLD = 5          # K折交叉驗證的折數
     TIMES = 3           # 重複K折交叉驗證的次數
-
-    TARGET_SIZE = (480, 480)
-    BATCH_SIZE = 2
     
     # 顯示CUDA信息
     if torch.cuda.is_available():
