@@ -63,9 +63,16 @@ def train_kfold_glas(model_type="UNet", k_fold=5, times=3, folder="./data/Glas",
         print(f"GPU 記憶體狀態: {torch.cuda.memory_allocated()/1024**3:.2f} GB / {torch.cuda.max_memory_allocated()/1024**3:.2f} GB")
     
     # 使用生成器獲取k折交叉驗證數據
-    origin_train_data, _, origin_test_data = load_data(folder=folder, target_size=target_size)
+    origin_train_data, origin_val_data, origin_test_data = load_data(folder=folder, target_size=target_size)
     origin_train_image, origin_train_mask = origin_train_data
-    k_fold_gen = split_dataset_kfold(origin_train_image, origin_train_mask, k_fold=k_fold, times=times)
+    origin_val_image, origin_val_mask = origin_val_data
+    
+    # 將驗證數據合併到訓練數據中
+    combined_train_image = np.concatenate([origin_train_image, origin_val_image], axis=0)
+    combined_train_mask = np.concatenate([origin_train_mask, origin_val_mask], axis=0)
+    print(f"合併後的訓練數據形狀: 圖像 {combined_train_image.shape}, 掩碼 {combined_train_mask.shape}")
+    
+    k_fold_gen = split_dataset_kfold(combined_train_image, combined_train_mask, k_fold=k_fold, times=times)
     
     # 保存測試數據以便最後的評估
     test_data_for_final = origin_test_data
