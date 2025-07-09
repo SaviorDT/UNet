@@ -2,7 +2,7 @@ import time
 import torch
 import os
 import torch.cuda
-from data import load_data
+from data_helpers.data import load_data
 from model import create_unet, train_model, create_lunext, save_results_with_images
 from trainer.k_fold import train_kfold
 
@@ -14,13 +14,13 @@ def main():
 
     # 配置參數
     MODEL_TYPE = "UNet"  # 可選: "UNet" 或 "LUNeXt"
-    MODE = "k_fold"     # 可選: "train", "test", 或 "k_fold"
+    MODE = "test"     # 可選: "train", "test", 或 "k_fold"
     DATASET = "my_proj1"    # 可選: "ISIC2018" 或 "Glas"
     DATASET_FOLDER = "./data/" + DATASET  # 數據集根目錄
     EPOCHS = 100
     BATCH_SIZE = 8     # 使用優化後的代碼可以支援更大批次，對小數據集 8-16 是合理範圍
     LEARNING_RATE = 0.00015
-    LOSS_TYPE = "self_reg"  # 可選: None 或 "self_reg"
+    LOSS_TYPE = None  # 可選: None 或 "self_reg"
     # 交叉驗證參數
     K_FOLD = 5          # K折交叉驗證的折數
     TIMES = 3           # 重複K折交叉驗證的次數

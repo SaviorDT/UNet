@@ -125,7 +125,7 @@ def load_data_with_random_split(folder: str, target_size=(128, 128), test_only=F
     Args:
         folder: 數據集根目錄路徑 (例如: "./data/my_proj1")
         target_size: 目標圖像大小 (height, width)
-        test_only: 如果為 True，只載入測試數據，不載入訓練和驗證數據
+        test_only: 沒有作用，因為讀取速度很快，不需要只讀取測試數據，僅保留兼容性
         train_ratio: 訓練集比例 (默認 0.7)
         val_ratio: 驗證集比例 (默認 0.2)，剩餘的作為測試集
         random_seed: 隨機種子，確保可重現性
@@ -133,7 +133,6 @@ def load_data_with_random_split(folder: str, target_size=(128, 128), test_only=F
     Returns:
         tuple: (train_data, validation_data, test_data)
         每個元素包含 (images, masks) 的 tuple
-        如果 test_only=True，train_data 和 validation_data 為空
     """
     img_folder = os.path.join(folder, 'img')
     mask_folder = os.path.join(folder, 'masks')
@@ -163,42 +162,35 @@ def load_data_with_random_split(folder: str, target_size=(128, 128), test_only=F
         masks = masks[:min_count]
     
     total_samples = len(images)
+
+    # 設置隨機種子確保可重現性
+    np.random.seed(random_seed)
     
-    if test_only:
-        # 如果只要測試數據，返回所有數據作為測試集
-        train_data = (np.array([]), np.array([]))
-        validation_data = (np.array([]), np.array([]))
-        test_data = (images, masks)
-        print("僅載入測試數據...")
-    else:
-        # 設置隨機種子確保可重現性
-        np.random.seed(random_seed)
-        
-        # 創建隨機索引
-        indices = np.random.permutation(total_samples)
-        
-        # 計算分割點
-        train_end = int(total_samples * train_ratio)
-        val_end = int(total_samples * (train_ratio + val_ratio))
-        
-        # 分割索引
-        train_indices = indices[:train_end]
-        val_indices = indices[train_end:val_end]
-        test_indices = indices[val_end:]
-        
-        # 根據索引分割數據
-        train_images = images[train_indices]
-        train_masks = masks[train_indices]
-        
-        val_images = images[val_indices]
-        val_masks = masks[val_indices]
-        
-        test_images = images[test_indices]
-        test_masks = masks[test_indices]
-        
-        train_data = (train_images, train_masks)
-        validation_data = (val_images, val_masks)
-        test_data = (test_images, test_masks)
+    # 創建隨機索引
+    indices = np.random.permutation(total_samples)
+    
+    # 計算分割點
+    train_end = int(total_samples * train_ratio)
+    val_end = int(total_samples * (train_ratio + val_ratio))
+    
+    # 分割索引
+    train_indices = indices[:train_end]
+    val_indices = indices[train_end:val_end]
+    test_indices = indices[val_end:]
+    
+    # 根據索引分割數據
+    train_images = images[train_indices]
+    train_masks = masks[train_indices]
+    
+    val_images = images[val_indices]
+    val_masks = masks[val_indices]
+    
+    test_images = images[test_indices]
+    test_masks = masks[test_indices]
+    
+    train_data = (train_images, train_masks)
+    validation_data = (val_images, val_masks)
+    test_data = (test_images, test_masks)
     
     print("數據載入完成!")
     print(f"訓練集: {train_data[0].shape if len(train_data[0]) > 0 else '空'}")

@@ -9,6 +9,7 @@ import copy
 from torch.utils.data import DataLoader, TensorDataset
 import gc
 from data_helpers.utils import split_dataset_kfold
+from data_helpers.data import load_data
 
 def train_kfold(model_type="UNet", k_fold=5, times=3, dataset="Glas", folder="./data/Glas", 
                     target_size=(224, 224), epochs=100, batch_size=8, learning_rate=0.001,
@@ -62,17 +63,18 @@ def train_kfold(model_type="UNet", k_fold=5, times=3, dataset="Glas", folder="./
         print(f"GPU 記憶體狀態: {torch.cuda.memory_allocated()/1024**3:.2f} GB / {torch.cuda.max_memory_allocated()/1024**3:.2f} GB")
     
     # 使用生成器獲取k折交叉驗證數據
-    if dataset == "Glas":
-        from data_helpers.Glas import load_data
-        origin_train_data, origin_val_data, origin_test_data = load_data(folder=folder, target_size=target_size)
-    elif dataset == "ISIC2018":
-        from data_helpers.ISIC2018 import load_data
-        origin_train_data, origin_val_data, origin_test_data = load_data(folder=folder, target_size=target_size)
-    elif dataset == "my_proj1":
-        from data_helpers.my_proj1 import load_data_with_random_split
-        origin_train_data, origin_val_data, origin_test_data = load_data_with_random_split(folder=folder, target_size=target_size, train_ratio=0.8, val_ratio=0)
-    else:
-        raise ValueError(f"未知數據集: {dataset}. 可選值為 'Glas', 'ISIC2018', 'my_proj1'。")
+    # if dataset == "Glas":
+    #     from data_helpers.Glas import load_data
+    #     origin_train_data, origin_val_data, origin_test_data = load_data(folder=folder, target_size=target_size)
+    # elif dataset == "ISIC2018":
+    #     from data_helpers.ISIC2018 import load_data
+    #     origin_train_data, origin_val_data, origin_test_data = load_data(folder=folder, target_size=target_size)
+    # elif dataset == "my_proj1":
+    #     from data_helpers.my_proj1 import load_data_with_random_split
+    #     origin_train_data, origin_val_data, origin_test_data = load_data_with_random_split(folder=folder, target_size=target_size, train_ratio=0.8, val_ratio=0)
+    # else:
+    #     raise ValueError(f"未知數據集: {dataset}. 可選值為 'Glas', 'ISIC2018', 'my_proj1'。")
+    origin_train_data, origin_val_data, origin_test_data = load_data(dataset_name=dataset, folder=folder, target_size=target_size)
     origin_train_image, origin_train_mask = origin_train_data
     origin_val_image, origin_val_mask = origin_val_data
     
