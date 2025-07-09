@@ -29,6 +29,6 @@ def load_data(dataset_name: str, folder: str, target_size=(128, 128), test_only=
     elif dataset_name.lower() == "glas":
         return load_glas_data(folder, target_size, test_only)
     elif dataset_name.lower() == "my_proj1":
-        return load_my_proj1_data(folder, target_size, train_ratio=0.8, val_ratio=0, random_seed=42, test_only=test_only)
+        return load_my_proj1_data(folder, target_size, train_ratio=0.64, val_ratio=0.16, random_seed=42, test_only=test_only)
     else:
         raise ValueError(f"不支持的數據集: {dataset_name}")

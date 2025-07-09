@@ -14,16 +14,20 @@ def main():
 
     # 配置參數
     MODEL_TYPE = "UNet"  # 可選: "UNet" 或 "LUNeXt"
-    MODE = "test"     # 可選: "train", "test", 或 "k_fold"
+    MODE = "k_fold"     # 可選: "train", "test", 或 "k_fold"
     DATASET = "my_proj1"    # 可選: "ISIC2018" 或 "Glas"
     DATASET_FOLDER = "./data/" + DATASET  # 數據集根目錄
+    TARGET_SIZE = (128, 128) if DATASET != "Glas" else (224, 224)  # 根據數據集調整目標大小
     EPOCHS = 100
-    BATCH_SIZE = 8     # 使用優化後的代碼可以支援更大批次，對小數據集 8-16 是合理範圍
+    BATCH_SIZE = 16 if DATASET == "ISIC2018" else 8  # 根據數據集調整批次大小
     LEARNING_RATE = 0.00015
     LOSS_TYPE = None  # 可選: None 或 "self_reg"
     # 交叉驗證參數
     K_FOLD = 5          # K折交叉驗證的折數
     TIMES = 3           # 重複K折交叉驗證的次數
+
+    TARGET_SIZE = (480, 480)
+    BATCH_SIZE = 2
     
     # 顯示CUDA信息
     if torch.cuda.is_available():
@@ -65,6 +69,7 @@ def main():
             times=TIMES, 
             dataset=DATASET,
             folder=DATASET_FOLDER, 
+            target_size=TARGET_SIZE,
             epochs=EPOCHS, 
             batch_size=BATCH_SIZE, 
             learning_rate=LEARNING_RATE,
@@ -109,7 +114,7 @@ def main():
         train_data, validation_data, test_data = load_data(
             dataset_name=DATASET,
             folder=DATASET_FOLDER, 
-            target_size=(128, 128), 
+            target_size=TARGET_SIZE, 
             test_only=False
         )
         print("數據載入完成 - 包含訓練、驗證和測試集")
@@ -118,7 +123,7 @@ def main():
         train_data, validation_data, test_data = load_data(
             dataset_name=DATASET,
             folder=DATASET_FOLDER, 
-            target_size=(128, 128) if DATASET == "ISIC2018" else (224, 224),
+            target_size=TARGET_SIZE,
             test_only=True
         )
         print("數據載入完成 - 僅測試集")

@@ -10,10 +10,11 @@ from torch.utils.data import DataLoader, TensorDataset
 import gc
 from data_helpers.utils import split_dataset_kfold
 from data_helpers.data import load_data
+from torch.profiler import profile, record_function, ProfilerActivity
 
 def train_kfold(model_type="UNet", k_fold=5, times=3, dataset="Glas", folder="./data/Glas", 
                     target_size=(224, 224), epochs=100, batch_size=8, learning_rate=0.001,
-                    eval_batch_size=4, custom_loss=None):
+                    eval_batch_size=1, custom_loss=None):
     """
     對Glas數據集進行K次K折交叉驗證訓練
     
@@ -52,28 +53,16 @@ def train_kfold(model_type="UNet", k_fold=5, times=3, dataset="Glas", folder="./
         torch.cuda.reset_peak_memory_stats()
         
         # 設置 GPU 記憶體分配器
-        try:
-            # 嘗試設置較為激進的記憶體釋放策略
-            torch.cuda.memory.set_per_process_memory_fraction(0.8)  # 限制使用不超過 80% 的 GPU 記憶體
-            print("已設置 GPU 記憶體限制為 80%")
-        except:
-            print("無法設置 GPU 記憶體限制，使用預設值")
+        # try:
+        #     # 嘗試設置較為激進的記憶體釋放策略
+        #     torch.cuda.memory.set_per_process_memory_fraction(0.8)  # 限制使用不超過 80% 的 GPU 記憶體
+        #     print("已設置 GPU 記憶體限制為 80%")
+        # except:
+        #     print("無法設置 GPU 記憶體限制，使用預設值")
         
         # 顯示記憶體狀態
         print(f"GPU 記憶體狀態: {torch.cuda.memory_allocated()/1024**3:.2f} GB / {torch.cuda.max_memory_allocated()/1024**3:.2f} GB")
     
-    # 使用生成器獲取k折交叉驗證數據
-    # if dataset == "Glas":
-    #     from data_helpers.Glas import load_data
-    #     origin_train_data, origin_val_data, origin_test_data = load_data(folder=folder, target_size=target_size)
-    # elif dataset == "ISIC2018":
-    #     from data_helpers.ISIC2018 import load_data
-    #     origin_train_data, origin_val_data, origin_test_data = load_data(folder=folder, target_size=target_size)
-    # elif dataset == "my_proj1":
-    #     from data_helpers.my_proj1 import load_data_with_random_split
-    #     origin_train_data, origin_val_data, origin_test_data = load_data_with_random_split(folder=folder, target_size=target_size, train_ratio=0.8, val_ratio=0)
-    # else:
-    #     raise ValueError(f"未知數據集: {dataset}. 可選值為 'Glas', 'ISIC2018', 'my_proj1'。")
     origin_train_data, origin_val_data, origin_test_data = load_data(dataset_name=dataset, folder=folder, target_size=target_size)
     origin_train_image, origin_train_mask = origin_train_data
     origin_val_image, origin_val_mask = origin_val_data
@@ -98,22 +87,14 @@ def train_kfold(model_type="UNet", k_fold=5, times=3, dataset="Glas", folder="./
         # 強制清理 GPU 記憶體並重置統計資訊
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
+            torch.cuda.reset_max_memory_allocated()
             torch.cuda.reset_peak_memory_stats()
             print(f"訓練前 GPU 記憶體狀態: {torch.cuda.memory_allocated()/1024**3:.2f} GB / {torch.cuda.max_memory_allocated()/1024**3:.2f} GB")
-            
-            # 檢查 GPU 溫度 (如果可能)
-            # try:
-            #     import pynvml
-            #     pynvml.nvmlInit()
-            #     handle = pynvml.nvmlDeviceGetHandleByIndex(0)
-            #     temp = pynvml.nvmlDeviceGetTemperature(handle, pynvml.NVML_TEMPERATURE_GPU)
-            #     print(f"GPU 溫度: {temp}°C")
-            # except:
-            #     print("無法檢查 GPU 溫度")
         
         # 訓練模型 (添加自動批次大小縮放)
         print(f"訓練 {model_type} 模型...")
         start_time = time.time()
+
         try:
             model = train_model(
                 train_data, val_data, model_type=model_type,
@@ -122,20 +103,6 @@ def train_kfold(model_type="UNet", k_fold=5, times=3, dataset="Glas", folder="./
             )
         except RuntimeError as e:
             raise e
-            # if "out of memory" in str(e):
-            #     print(f"GPU 記憶體不足，嘗試減小批次大小...")
-            #     # 嘗試減小批次大小重新訓練
-            #     reduced_batch = max(1, batch_size // 2)
-            #     print(f"使用較小的批次大小: {reduced_batch}")
-            #     if torch.cuda.is_available():
-            #         torch.cuda.empty_cache()
-            #     model = train_model(
-            #         train_data, val_data, model_type=model_type,
-            #         epochs=epochs, batch_size=reduced_batch, learning_rate=learning_rate,
-            #         device=device, custom_loss=custom_loss
-            #     )
-            # else:
-            #     raise e
         
         train_time = time.time() - start_time
         print(f"訓練完成！耗時: {train_time:.2f} 秒")
@@ -172,6 +139,32 @@ def train_kfold(model_type="UNet", k_fold=5, times=3, dataset="Glas", folder="./
             best_model = copy.deepcopy(model)
             torch.save(model.state_dict(), best_model_path)
             print(f"保存最佳模型! Dice: {best_dice:.4f}")
+
+        # === 新增：更彻底的内存清理 ===
+        # 1. 确保模型完全从GPU移除
+        if hasattr(model, 'cpu'):
+            model.cpu()
+        
+        # 2. 清理模型的所有参数和缓冲区
+        if hasattr(model, 'parameters'):
+            for param in model.parameters():
+                if param.grad is not None:
+                    param.grad = None
+                del param
+        
+        if hasattr(model, 'buffers'):
+            for buffer in model.buffers():
+                del buffer
+
+        if hasattr(model, 'intermediate_features'):
+            # 删除所有中间特征
+            for feature in model.intermediate_features:
+                feature.detach().cpu()
+                del feature
+            model.intermediate_features.clear()
+            model.intermediate_features = []
+
+        
         
         # 顯式刪除當前模型以釋放記憶體
         del model
@@ -179,6 +172,7 @@ def train_kfold(model_type="UNet", k_fold=5, times=3, dataset="Glas", folder="./
         
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
+            torch.cuda.ipc_collect()  # 清理进程间通信的缓存
             
             # 檢查 CUDA 記憶體分配情況
             alloc = torch.cuda.memory_allocated()/1024**3
