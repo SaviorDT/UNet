@@ -79,6 +79,7 @@ class UNet(nn.Module):
         
         # 激活函數
         self.relu = nn.ReLU(inplace=True)
+        self.sigmoid = nn.Sigmoid()
         
         self.intermediate_features = []  # 用於存儲中間層特徵
         
@@ -170,5 +171,6 @@ class UNet(nn.Module):
 
         # 最終輸出 (不使用 BN 和 ReLU，因為這是最終輸出層)
         output = self.final_conv(conv_up4_2)
+        # output = self.sigmoid(output)
         
         return output

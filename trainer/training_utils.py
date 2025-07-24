@@ -6,6 +6,7 @@ from torch.utils.data import DataLoader, TensorDataset
 from tqdm import tqdm
 from models.model_utils import create_unet, create_lunext
 from models.losses import SelfRegLoss
+from losses.cl_dice import soft_dice_cldice
 
 def train_model(train_data, validation_data, model_type="UNet", epochs=50, batch_size=16, learning_rate=0.001, 
                 patience=10, device=None, custom_loss=None):
@@ -95,6 +96,8 @@ def train_model(train_data, validation_data, model_type="UNet", epochs=50, batch
     # 定義損失函數和優化器
     if custom_loss == "self_reg":
         criterion = SelfRegLoss()
+    elif custom_loss == "cl_dice":
+        criterion = soft_dice_cldice()
     else:
         criterion = nn.BCEWithLogitsLoss()  # 適用於二分類分割
 

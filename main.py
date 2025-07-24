@@ -16,7 +16,7 @@ def main():
     # 配置參數
     MODEL_TYPE = "UNet"  # 可選: "UNet" 或 "LUNeXt"
     MODE = "test"     # 可選: "train", "test", 或 "k_fold"
-    TEST_SCORE = "skeleton"  # 可選: "traditional" 或 "skeleton"
+    TEST_SCORE = "traditional"  # 可選: "traditional" 或 "skeleton"
     DATASET = "my_proj1"    # 可選: "ISIC2018" 或 "Glas"
     DATASET_FOLDER = "./data/" + DATASET  # 數據集根目錄
     if DATASET == "ISIC2018":
@@ -26,11 +26,11 @@ def main():
         TARGET_SIZE = (224, 224)
         BATCH_SIZE = 8
     elif DATASET == "my_proj1":
-        TARGET_SIZE = (480, 480)
+        TARGET_SIZE = (640, 480)
         BATCH_SIZE = 2
     EPOCHS = 100
     LEARNING_RATE = 0.00015
-    LOSS_TYPE = None  # 可選: None 或 "self_reg"
+    LOSS_TYPE = "cl_dice"  # 可選: None 或 "self_reg", "cl_dice"
     # 交叉驗證參數
     K_FOLD = 5          # K折交叉驗證的折數
     TIMES = 3           # 重複K折交叉驗證的次數
