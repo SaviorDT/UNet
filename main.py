@@ -4,7 +4,6 @@ import os
 import torch.cuda
 from data_helpers.data import load_data
 from model import create_unet, train_model, create_lunext, save_results_with_images
-from test_helper.skeleton import save_skeleton_results_with_images
 from trainer.k_fold import train_kfold
 
 def main():
@@ -15,8 +14,8 @@ def main():
 
     # 配置參數
     MODEL_TYPE = "UNet"  # 可選: "UNet" 或 "LUNeXt"
-    MODE = "test"     # 可選: "train", "test", 或 "k_fold"
-    TEST_SCORE = "traditional"  # 可選: "traditional" 或 "skeleton"
+    MODE = "k_fold"     # 可選: "train", "test", 或 "k_fold"
+    TEST_SCORE = "traditional"  # 可選: "traditional"，未來可能新增 skeleton 評分方法
     DATASET = "my_proj1"    # 可選: "ISIC2018" 或 "Glas"
     DATASET_FOLDER = "./data/" + DATASET  # 數據集根目錄
     if DATASET == "ISIC2018":
@@ -192,30 +191,16 @@ def main():
     # 評估模型並保存結果
     print(f"\n開始評估模型...")
     
-    if TEST_SCORE == "skeleton":
-        # 使用骨架化評分方法
-        print("使用骨架化評分方法進行評估...")
-        save_skeleton_results_with_images(
-            model, 
-            test_data, 
-            train_time, 
-            result_filename.replace('.txt', '_skeleton.txt'), 
-            model_name=MODEL_TYPE
-        )
-        print(f"骨架化評估完成！結果已保存到 {result_filename.replace('.txt', '_skeleton.txt')}")
-        print(f"骨架化預測圖像已保存到 predictions/{MODEL_TYPE}_Skeleton/ 資料夾")
-    else:
-        # 使用傳統評分方法 (預設)
-        print("使用傳統評分方法進行評估...")
-        save_results_with_images(
-            model, 
-            test_data, 
-            train_time, 
-            result_filename, 
-            model_name=MODEL_TYPE
-        )
-        print(f"傳統評估完成！結果已保存到 {result_filename}")
-        print(f"預測圖像已保存到 predictions/{MODEL_TYPE}/ 資料夾")
+    print("使用傳統評分方法進行評估...")
+    save_results_with_images(
+        model, 
+        test_data, 
+        train_time, 
+        result_filename, 
+        model_name=MODEL_TYPE
+    )
+    print(f"傳統評估完成！結果已保存到 {result_filename}")
+    print(f"預測圖像已保存到 predictions/{MODEL_TYPE}/ 資料夾")
 
 if __name__ == "__main__":
     main()

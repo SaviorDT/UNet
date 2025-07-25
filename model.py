@@ -12,12 +12,6 @@ from test_helper.utils import (
     save_prediction_images,
     save_results_with_images
 )
-from test_helper.skeleton import (
-    save_skeleton_results_with_images,
-    evaluate_model_skeleton,
-    skeletonize_mask,
-    calculate_skeleton_metrics
-)
 
 # 向後兼容的別名 - 將來可能會被移除
 # 建議新代碼直接從相應模組導入
@@ -31,9 +25,5 @@ __all__ = [
     'calculate_metrics',
     'save_results',
     'save_prediction_images', 
-    'save_results_with_images',
-    'save_skeleton_results_with_images',
-    'evaluate_model_skeleton',
-    'skeletonize_mask',
-    'calculate_skeleton_metrics'
+    'save_results_with_images'
 ]
