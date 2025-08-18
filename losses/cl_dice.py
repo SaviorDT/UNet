@@ -81,6 +81,13 @@ def soft_dice(y_true, y_pred):
         [float32]: [loss value]
     """
     smooth = 1
+    # 若輸入非 [0,1] 概率，嘗試以 sigmoid 轉換 logits；再夾取到 [0,1]
+    with torch.no_grad():
+        need_sigmoid = (y_pred.min() < 0) or (y_pred.max() > 1)
+    if need_sigmoid:
+        y_pred = torch.sigmoid(y_pred)
+    y_true = torch.clamp(y_true, 0.0, 1.0)
+    y_pred = torch.clamp(y_pred, 0.0, 1.0)
     intersection = torch.sum((y_true * y_pred))
     coeff = (2. *  intersection + smooth) / (torch.sum(y_true) + torch.sum(y_pred) + smooth)
     return (1. - coeff)
@@ -99,10 +106,18 @@ class soft_dice_cldice(nn.Module):
         if self.exclude_background:
             y_true = y_true[:, :, :, :]
             y_pred = y_pred[:, :, :, :]
+        # 確保為概率值：若輸入非 [0,1]，以 sigmoid 轉換；再夾取到 [0,1]
+        with torch.no_grad():
+            need_sigmoid = (y_pred.min() < 0) or (y_pred.max() > 1)
+        if need_sigmoid:
+            y_pred = torch.sigmoid(y_pred)
+        y_true = torch.clamp(y_true, 0.0, 1.0)
+        y_pred = torch.clamp(y_pred, 0.0, 1.0)
+
         dice = soft_dice(y_true, y_pred)
         skel_pred = self.soft_skeletonize(y_pred)
         skel_true = self.soft_skeletonize(y_true)
-        tprec = (torch.sum(torch.multiply(skel_pred, y_true))+self.smooth)/(torch.sum(skel_pred)+self.smooth)    
-        tsens = (torch.sum(torch.multiply(skel_true, y_pred))+self.smooth)/(torch.sum(skel_true)+self.smooth)    
+        tprec = (torch.sum(torch.multiply(skel_pred, y_true))+self.smooth)/(torch.sum(skel_pred)+self.smooth)
+        tsens = (torch.sum(torch.multiply(skel_true, y_pred))+self.smooth)/(torch.sum(skel_true)+self.smooth)
         cl_dice = 1.- 2.0*(tprec*tsens)/(tprec+tsens)
-        return (1.0-self.alpha)*dice+self.alpha*cl_dice
+        return (1.0-self.alpha)*dice + self.alpha*cl_dice

@@ -260,14 +260,34 @@ def save_prediction_images(model, test_data, output_folder="predictions", model_
                 
                 # 準備數據 (將值範圍調整到 0-255)
                 original = (batch_images_np[j] * 255).astype(np.uint8)
+                # 將原圖標準化為可視化的RGB
+                if original.ndim == 2:
+                    # 單通道 -> 灰度擴展為RGB
+                    original_rgb_np = np.stack([original, original, original], axis=-1)
+                elif original.ndim == 3:
+                    c = original.shape[2]
+                    if c == 1:
+                        ch = original[:, :, 0]
+                        original_rgb_np = np.stack([ch, ch, ch], axis=-1)
+                    elif c == 2:
+                        # 2通道：R=ch0, G=ch1, B=0
+                        z = np.zeros_like(original[:, :, 0])
+                        original_rgb_np = np.stack([original[:, :, 0], original[:, :, 1], z], axis=-1)
+                    else:
+                        # 取前三個通道
+                        original_rgb_np = original[:, :, :3]
+                else:
+                    # 異常情況，強制轉灰度再擴展
+                    gray = original.squeeze()
+                    original_rgb_np = np.stack([gray, gray, gray], axis=-1)
                 ground_truth = (batch_masks_np[j][:,:,0] * 255).astype(np.uint8)  # 移除通道維度
                 prediction = (pred_binary_np[j][:,:,0] * 255).astype(np.uint8)
                 
                 # 獲取原始圖像尺寸
-                height, width = original.shape[:2]
+                height, width = original_rgb_np.shape[:2]
                 
                 # 保存原始圖像
-                original_img = Image.fromarray(original)
+                original_img = Image.fromarray(original_rgb_np, mode='RGB')
                 original_img.save(os.path.join(folders['original'], f"{img_idx:04d}_original.png"))
                 
                 # 保存ground truth
@@ -286,11 +306,8 @@ def save_prediction_images(model, test_data, output_folder="predictions", model_
                 # 創建比對圖像畫布
                 comparison_img = Image.new('RGB', (comparison_width, comparison_height))
                 
-                # 將原圖轉換為RGB（如果需要）
-                if original_img.mode != 'RGB':
-                    original_rgb = original_img.convert('RGB')
-                else:
-                    original_rgb = original_img
+                # 原圖已為RGB
+                original_rgb = original_img
                 
                 # 將灰度圖轉換為RGB，保持原始尺寸
                 gt_rgb = Image.fromarray(np.stack([ground_truth, ground_truth, ground_truth], axis=-1))

@@ -14,9 +14,9 @@ def main():
 
     # 配置參數
     MODEL_TYPE = "UNet"  # 可選: "UNet" 或 "LUNeXt"
-    MODE = "k_fold"     # 可選: "train", "test", 或 "k_fold"
+    MODE = "test"     # 可選: "train", "test", 或 "k_fold"
     TEST_SCORE = "traditional"  # 可選: "traditional"，未來可能新增 skeleton 評分方法
-    DATASET = "my_proj1"    # 可選: "ISIC2018" 或 "Glas"
+    DATASET = "my_proj2"    # 可選: "ISIC2018" 或 "Glas"
     DATASET_FOLDER = "./data/" + DATASET  # 數據集根目錄
     if DATASET == "ISIC2018":
         TARGET_SIZE = (128, 128)
@@ -26,6 +26,9 @@ def main():
         BATCH_SIZE = 8
     elif DATASET == "my_proj1":
         TARGET_SIZE = (640, 480)
+        BATCH_SIZE = 2
+    elif DATASET == "my_proj2":
+        TARGET_SIZE = (540, 360) # my_proj2 會自動將圖片裁切為 16 的倍數，讓 unet 順利運作
         BATCH_SIZE = 2
     EPOCHS = 100
     LEARNING_RATE = 0.00015
@@ -163,12 +166,15 @@ def main():
         # 測試模式：載入預訓練模型
         print(f"\n載入預訓練的 {MODEL_TYPE} 模型...")
         
+        # 根據測試資料自動決定輸入通道數
+        inferred_in_channels = test_data[0].shape[-1] if len(test_data[0]) > 0 else 3
+
         if MODEL_TYPE == "UNet":
-            model = create_unet(in_channels=3, out_channels=1)
+            model = create_unet(in_channels=inferred_in_channels, out_channels=1)
             model_filename = "UNet_model_best.pth"
             result_filename = "UNet_test_result.txt"
         else:  # LUNeXt
-            model = create_lunext(in_channels=3, out_channels=1)
+            model = create_lunext(in_channels=inferred_in_channels, out_channels=1)
             model_filename = "LUNeXt_model_best.pth"
             result_filename = "LUNeXt_test_result.txt"
         

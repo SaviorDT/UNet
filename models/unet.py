@@ -131,8 +131,8 @@ class UNet(nn.Module):
         # 第一次上採樣: UpConv -> Concatenation -> Conv -> BN -> ReLU -> Conv -> BN -> ReLU
         up1 = self.upconv1(conv5_2)
         # 確保尺寸匹配
-        if up1.size() != conv4_2.size():
-            up1 = F.interpolate(up1, size=conv4.shape[2:], mode='bilinear', align_corners=False)
+        # if up1.size() != conv4_2.size():
+        #     up1 = F.interpolate(up1, size=conv4_2.shape[2:], mode='bilinear', align_corners=False)
         # Skip connection + concatenation
         merge1 = torch.cat([conv4_2, up1], dim=1)
         conv_up1_1 = self.relu(self.bn_up1_1(self.conv_up1_1(merge1)))
@@ -142,8 +142,8 @@ class UNet(nn.Module):
 
         # 第二次上採樣
         up2 = self.upconv2(conv_up1_2)
-        if up2.size() != conv3_2.size():
-            up2 = F.interpolate(up2, size=conv3.shape[2:], mode='bilinear', align_corners=False)
+        # if up2.size() != conv3_2.size():
+        #     up2 = F.interpolate(up2, size=conv3_2.shape[2:], mode='bilinear', align_corners=False)
         merge2 = torch.cat([conv3_2, up2], dim=1)
         conv_up2_1 = self.relu(self.bn_up2_1(self.conv_up2_1(merge2)))
         self.intermediate_features.append(conv_up2_1)
@@ -152,8 +152,8 @@ class UNet(nn.Module):
 
         # 第三次上採樣
         up3 = self.upconv3(conv_up2_2)
-        if up3.size() != conv2_2.size():
-            up3 = F.interpolate(up3, size=conv2.shape[2:], mode='bilinear', align_corners=False)
+        # if up3.size() != conv2_2.size():
+        #     up3 = F.interpolate(up3, size=conv2_2.shape[2:], mode='bilinear', align_corners=False)
         merge3 = torch.cat([conv2_2, up3], dim=1)
         conv_up3_1 = self.relu(self.bn_up3_1(self.conv_up3_1(merge3)))
         self.intermediate_features.append(conv_up3_1)
@@ -162,8 +162,8 @@ class UNet(nn.Module):
 
         # 第四次上採樣
         up4 = self.upconv4(conv_up3_2)
-        if up4.size() != conv1_2.size():
-            up4 = F.interpolate(up4, size=conv1.shape[2:], mode='bilinear', align_corners=False)
+        # if up4.size() != conv1_2.size():
+        #     up4 = F.interpolate(up4, size=conv1_2.shape[2:], mode='bilinear', align_corners=False)
         merge4 = torch.cat([conv1_2, up4], dim=1)
         conv_up4_1 = self.relu(self.bn_up4_1(self.conv_up4_1(merge4)))
         conv_up4_2 = self.relu(self.bn_up4_2(self.conv_up4_2(conv_up4_1)))

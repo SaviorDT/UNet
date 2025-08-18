@@ -83,12 +83,15 @@ def train_model(train_data, validation_data, model_type="UNet", epochs=50, batch
         persistent_workers=persistent_workers
     )
     
-    # 創建模型
+    # 根據資料自動決定輸入通道數
+    inferred_in_channels = train_data[0].shape[-1] if len(train_data[0]) > 0 else 3
+
+    # 創建模型（依據資料通道數設定 in_channels）
     if model_type == "UNet":
-        model = create_unet(in_channels=3, out_channels=1)
+        model = create_unet(in_channels=inferred_in_channels, out_channels=1)
         model_save_path = 'best_unet_model.pth'
     else:  # LUNeXt
-        model = create_lunext(in_channels=3, out_channels=1)
+        model = create_lunext(in_channels=inferred_in_channels, out_channels=1)
         model_save_path = 'best_lunext_model.pth'
     
     model = model.to(device)
@@ -135,9 +138,14 @@ def train_model(train_data, validation_data, model_type="UNet", epochs=50, batch
             if scaler:  # 使用混合精度 (float16)
                 with torch.amp.autocast('cuda'):
                     outputs = model(images)
-                    # 如果使用自訂損失函數，傳入中間層特徵
+                    # 自訂損失分支
                     if custom_loss == "self_reg":
                         loss = criterion(outputs, masks, model.intermediate_features)
+                    elif custom_loss == "cl_dice":
+                        # 將 logits 轉為概率，並夾取到 [0,1]
+                        probs = torch.sigmoid(outputs).clamp(1e-6, 1-1e-6)
+                        # 注意損失的引數順序: (y_true, y_pred)
+                        loss = criterion(masks, probs)
                     else:
                         loss = criterion(outputs, masks)
                 
@@ -147,9 +155,12 @@ def train_model(train_data, validation_data, model_type="UNet", epochs=50, batch
                 scaler.update()
             else:  # 常規訓練 (float32)
                 outputs = model(images)
-                # 如果使用自訂損失函數，傳入中間層特徵
+                # 自訂損失分支
                 if custom_loss == "self_reg":
                     loss = criterion(outputs, masks, model.intermediate_features)
+                elif custom_loss == "cl_dice":
+                    probs = torch.sigmoid(outputs).clamp(1e-6, 1-1e-6)
+                    loss = criterion(masks, probs)
                 else:
                     loss = criterion(outputs, masks)
                 
@@ -183,10 +194,12 @@ def train_model(train_data, validation_data, model_type="UNet", epochs=50, batch
                 masks = masks.to(device)
                 
                 outputs = model(images)
-                
-                # 如果使用自訂損失函數，傳入中間層特徵
+                # 自訂損失分支
                 if custom_loss == "self_reg":
                     loss = criterion(outputs, masks, model.intermediate_features)
+                elif custom_loss == "cl_dice":
+                    probs = torch.sigmoid(outputs).clamp(1e-6, 1-1e-6)
+                    loss = criterion(masks, probs)
                 else:
                     loss = criterion(outputs, masks)
                 
