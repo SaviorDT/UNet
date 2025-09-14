@@ -151,13 +151,13 @@ def main():
 
 
     # 6) Save images: A.png, B.png, RB_t.png
-    render_points(A2, "./icp/A.png",img_size=(hA, wA))
+    render_points(A3, "./icp/A.png",img_size=(hA, wA))
     render_points(B3 @ suggested_trans + suggested_t, "./icp/B.png",img_size=(hB, wB))
     
     render_points(B3_aligned, "./icp/AB.png",img_size=(hA, wA))
     # Overlay A2 (red) and B3_aligned (green)
-    render_overlay(A2, B3 @ suggested_trans + suggested_t, np.empty((0, 2)), "./icp/ABO.png", img_size=(hA, wA))
-    render_overlay(A2, np.empty((0, 2)), B3_aligned, "./icp/ABN.png", img_size=(hA, wA))
+    render_overlay(A3, B3 @ suggested_trans + suggested_t, np.empty((0, 2)), "./icp/ABO.png", img_size=(hA, wA))
+    render_overlay(A3, np.empty((0, 2)), B3_aligned, "./icp/ABN.png", img_size=(hA, wA))
 
     # Print results
     np.set_printoptions(precision=4, suppress=True)

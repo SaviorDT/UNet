@@ -32,7 +32,7 @@ def uav(A_pts_origin: np.ndarray, B_pts_origin: np.ndarray, B_w: float, B_h: flo
         B_pts = B_pts_origin @ RS.T + t
 
         paired_A, paired_B = _search_pairs(kd_tree_A, A_pts, B_pts, 10)
-        if len(paired_A) < len(A_pts) * .7:
+        if len(paired_B) < len(B_pts) * .85:
             # print("it", j, "skipped")
             continue
 
