@@ -1,4 +1,5 @@
 import itertools
+import time
 import numpy as np
 from typing import Tuple
 from scipy.spatial import cKDTree as KDTree
@@ -19,14 +20,27 @@ def uav(A_pts_origin: np.ndarray, B_pts_origin: np.ndarray, B_w: float, B_h: flo
     # return RS_trans[0] @ suggested_Rs, t_trans[0] + suggested_t
 
     A_pts = A_pts_origin.copy()
+    kd_tree_A = KDTree(A_pts)
 
     for j in range(len(RS_trans)):
+        if j % 100 == 0:
+            print("it", j, "of", len(RS_trans))
+        # start_time = time.time()
+
         RS = RS_trans[j]
         t = t_trans[j]
         B_pts = B_pts_origin @ RS.T + t
 
+        paired_A, paired_B = _search_pairs(kd_tree_A, A_pts, B_pts, 10)
+        if len(paired_A) < len(A_pts) * .7:
+            # print("it", j, "skipped")
+            continue
+
+        # time_A = time.time()
+        # print(f"Transformation {j+1} took {time_A - start_time:.4f} seconds")
+
         for i in range(max_it):
-            paired_A, paired_B = _search_pairs(A_pts , B_pts, neighbor_threshold)
+            paired_A, paired_B = _search_pairs(kd_tree_A, A_pts, B_pts, neighbor_threshold)
             tmp_R, tmp_t = uav_util(paired_A, paired_B)
             # Check for convergence
             if np.linalg.norm(tmp_R) < max_tol and np.linalg.norm(tmp_t) < max_tol:
@@ -34,13 +48,19 @@ def uav(A_pts_origin: np.ndarray, B_pts_origin: np.ndarray, B_w: float, B_h: flo
             B_pts = (tmp_R @ B_pts.T).T + tmp_t
             RS, t = tmp_R @ RS, tmp_R @ t + tmp_t
 
-        paired_A, paired_B = _search_pairs(A_pts , B_pts, 3)
-        print("it", j, "of", len(RS_trans), ", final score:", len(paired_A), "/", len(A_pts))
+        # time_B = time.time()
+        # print(f"Iterations {i+1} took {time_B - time_A:.4f} seconds")
+
+        paired_A, paired_B = _search_pairs(kd_tree_A, A_pts, B_pts, 3)
+
+        # time_C = time.time()
+        # print(f"Pair search took {time_C - time_B:.4f} seconds")
+        # print("it", j, "of", len(RS_trans), ", final score:", len(paired_A), "/", len(A_pts))
         if len(paired_A) >= len(A_pts) * .6:
             return RS @ suggested_Rs, RS @ suggested_t + t.reshape(3)
 
-    raise ValueError("UAV did not converge")
-    # return RS, t.reshape(3)
+    # raise ValueError("UAV did not converge")
+    return RS @ suggested_Rs, RS @ suggested_t + t.reshape(3)
 
 def uav_util(A_pts: np.ndarray, B_pts: np.ndarray) -> tuple[np.ndarray, np.array]:
     """Compute the UAV metric between two point clouds.
@@ -78,25 +98,27 @@ def uav_util(A_pts: np.ndarray, B_pts: np.ndarray) -> tuple[np.ndarray, np.array
 
 
 
-def _search_pairs(A_pts: np.ndarray, B_pts: np.ndarray, neighbor_threshold: float) -> Tuple[np.ndarray, np.ndarray]:
+def _search_pairs(A_tree: KDTree, A_pts: np.ndarray, B_pts: np.ndarray, neighbor_threshold: float) -> Tuple[np.ndarray, np.ndarray]:
     # Handle edge cases
-    if A_pts is None or B_pts is None:
-        raise ValueError("A_pts and B_pts must not be None")
+    # if A_pts is None or B_pts is None:
+    #     raise ValueError("A_pts and B_pts must not be None")
 
-    if A_pts.ndim != 2 or B_pts.ndim != 2:
-        raise ValueError("A_pts and B_pts must be 2D arrays of shape (N, D) and (M, D)")
+    # if A_pts.ndim != 2 or B_pts.ndim != 2:
+    #     raise ValueError("A_pts and B_pts must be 2D arrays of shape (N, D) and (M, D)")
 
-    if A_pts.shape[1] != B_pts.shape[1]:
-        raise ValueError("A_pts and B_pts must have the same dimensionality")
+    # if A_pts.shape[1] != B_pts.shape[1]:
+    #     raise ValueError("A_pts and B_pts must have the same dimensionality")
 
     dim = A_pts.shape[1]
 
     if A_pts.shape[0] == 0 or B_pts.shape[0] == 0 or neighbor_threshold <= 0:
         raise ValueError("A_pts and B_pts must be non-empty and neighbor_threshold must be positive")
 
-    # Build KDTree on A points and query nearest for each B point within threshold
-    tree = KDTree(A_pts)
-    dists, indices = tree.query(B_pts, k=1, distance_upper_bound=neighbor_threshold)
+    # # Build KDTree on A points and query nearest for each B point within threshold
+    # tree = KDTree(A_pts)
+    if A_tree is None:
+        raise ValueError("A_tree must not be None")
+    dists, indices = A_tree.query(B_pts, k=1, distance_upper_bound=neighbor_threshold)
 
     # cKDTree returns inf distance (and index == n) for no neighbor within bound
     valid_mask = np.isfinite(dists)
@@ -112,10 +134,15 @@ def _search_pairs(A_pts: np.ndarray, B_pts: np.ndarray, neighbor_threshold: floa
 
 
 def _get_transforms(cx, cy) -> tuple[np.ndarray, np.ndarray]:
-    candidate_theta = [np.deg2rad(0), np.deg2rad(10), np.deg2rad(-10), np.deg2rad(20), np.deg2rad(-20)]
-    candidate_tx = [0, 50, -50, 100, -100]
-    candidate_ty = [0, 50, -50, 100, -100]
-    candidate_scale = [1, 1.05, 0.95, 1.1, 0.9]
+    candidate_theta = [np.deg2rad(0), np.deg2rad(10), np.deg2rad(-10), np.deg2rad(20), np.deg2rad(-20), np.deg2rad(30), np.deg2rad(-30), np.deg2rad(40), np.deg2rad(-40)]
+    candidate_tx = [0, 15, -15, 30, -30, 45, -45, 60, -60, 75, -75, 90, -90, 105, -105, 120, -120]
+    candidate_ty = [0, 15, -15, 30, -30, 45, -45, 60, -60, 75, -75, 90, -90, 105, -105, 120, -120]
+    candidate_scale = [1, 1.1, 0.9, 1.2, 0.8]
+
+    # candidate_theta = [np.deg2rad(-10)]
+    # candidate_tx = [75]
+    # candidate_ty = [0]
+    # candidate_scale = [0.85]
 
     candidate_R = np.empty((len(candidate_theta), 3, 3), dtype=np.float64)
     candidate_s = np.empty((len(candidate_scale), 3, 3), dtype=np.float64)

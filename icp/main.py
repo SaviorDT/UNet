@@ -106,6 +106,12 @@ def render_overlay(pts_red: np.ndarray, pts_green: np.ndarray, pts_blue: np.ndar
     img[by, bx, 2] = 255  # Blue channel
     imageio.imwrite(path, img)
 
+def reduce_points(pts: np.ndarray, factor: int) -> np.ndarray:
+    """Reduce the number of points by keeping every 'factor'-th point."""
+    if factor <= 0:
+        raise ValueError("factor must be a positive integer")
+    idx = np.random.choice(len(pts), size=len(pts)//factor, replace=False)
+    return pts[idx]
 
 def main():
     # Read points from test_A.png and test_B.png
@@ -116,12 +122,15 @@ def main():
     A3 = to3(A2)
     B3 = to3(B2)
 
+    A3 = reduce_points(A3, factor=8)
+    B3 = reduce_points(B3, factor=8)
+
     # Use a generous neighbor threshold in pixel units (max image dimension)
     neighbor_threshold = 4000
 
     suggested_s = np.diag([.42, .42, 1])
 
-    theta = np.deg2rad(10)
+    theta = np.deg2rad(20)
     c, s = np.cos(theta), np.sin(theta)
     Rz = np.array([
         [c, -s, 0],
