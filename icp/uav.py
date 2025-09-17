@@ -37,7 +37,7 @@ def uav(A_pts_origin: np.ndarray, B_pts_origin: np.ndarray, B_w: float, B_h: flo
             continue
 
         # time_A = time.time()
-        # print(f"Transformation {j+1} took {time_A - start_time:.4f} seconds")
+        # print(f"Transformation {j+1} took {time_A - start_time:.6f} seconds")
 
         for i in range(max_it):
             paired_A, paired_B = _search_pairs(kd_tree_A, A_pts, B_pts, neighbor_threshold)
@@ -49,14 +49,14 @@ def uav(A_pts_origin: np.ndarray, B_pts_origin: np.ndarray, B_w: float, B_h: flo
             RS, t = tmp_R @ RS, tmp_R @ t + tmp_t
 
         # time_B = time.time()
-        # print(f"Iterations {i+1} took {time_B - time_A:.4f} seconds")
+        # print(f"Iterations {i+1} took {time_B - time_A:.6f} seconds")
 
         paired_A, paired_B = _search_pairs(kd_tree_A, A_pts, B_pts, 3)
 
         # time_C = time.time()
-        # print(f"Pair search took {time_C - time_B:.4f} seconds")
+        # print(f"Pair search took {time_C - time_B:.6f} seconds")
         # print("it", j, "of", len(RS_trans), ", final score:", len(paired_A), "/", len(A_pts))
-        if len(paired_A) >= len(A_pts) * .6:
+        if len(paired_B) >= len(B_pts) * .6:
             return RS @ suggested_Rs, RS @ suggested_t + t.reshape(3)
 
     # raise ValueError("UAV did not converge")
@@ -99,23 +99,11 @@ def uav_util(A_pts: np.ndarray, B_pts: np.ndarray) -> tuple[np.ndarray, np.array
 
 
 def _search_pairs(A_tree: KDTree, A_pts: np.ndarray, B_pts: np.ndarray, neighbor_threshold: float) -> Tuple[np.ndarray, np.ndarray]:
-    # Handle edge cases
-    # if A_pts is None or B_pts is None:
-    #     raise ValueError("A_pts and B_pts must not be None")
-
-    # if A_pts.ndim != 2 or B_pts.ndim != 2:
-    #     raise ValueError("A_pts and B_pts must be 2D arrays of shape (N, D) and (M, D)")
-
-    # if A_pts.shape[1] != B_pts.shape[1]:
-    #     raise ValueError("A_pts and B_pts must have the same dimensionality")
-
     dim = A_pts.shape[1]
 
     if A_pts.shape[0] == 0 or B_pts.shape[0] == 0 or neighbor_threshold <= 0:
         raise ValueError("A_pts and B_pts must be non-empty and neighbor_threshold must be positive")
 
-    # # Build KDTree on A points and query nearest for each B point within threshold
-    # tree = KDTree(A_pts)
     if A_tree is None:
         raise ValueError("A_tree must not be None")
     dists, indices = A_tree.query(B_pts, k=1, distance_upper_bound=neighbor_threshold)
@@ -139,10 +127,10 @@ def _get_transforms(cx, cy) -> tuple[np.ndarray, np.ndarray]:
     candidate_ty = [0, 15, -15, 30, -30, 45, -45, 60, -60, 75, -75, 90, -90, 105, -105, 120, -120]
     candidate_scale = [1, 1.1, 0.9, 1.2, 0.8]
 
-    # candidate_theta = [np.deg2rad(-10)]
-    # candidate_tx = [75]
+    # candidate_theta = [0]
+    # candidate_tx = [0]
     # candidate_ty = [0]
-    # candidate_scale = [0.85]
+    # candidate_scale = [1]
 
     candidate_R = np.empty((len(candidate_theta), 3, 3), dtype=np.float64)
     candidate_s = np.empty((len(candidate_scale), 3, 3), dtype=np.float64)
@@ -180,6 +168,3 @@ def _enumerator_form_nearest(arr1, arr2, arr3, arr4):
     
     for indices in all_indices_sorted:
         yield tuple([arr1[indices[0]], arr2[indices[1]], arr3[indices[2]], arr4[indices[3]]])
-
-if __name__ == "__main__":
-    _get_transforms(640, 480)

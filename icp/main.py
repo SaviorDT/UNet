@@ -1,3 +1,4 @@
+import time
 import numpy as np
 from typing import Tuple
 from uav import uav
@@ -114,6 +115,7 @@ def reduce_points(pts: np.ndarray, factor: int) -> np.ndarray:
     return pts[idx]
 
 def main():
+    # start = time.time()
     # Read points from test_A.png and test_B.png
     A2, (hA, wA) = _read_points_from_image("./icp/test_A.png")
     B2, (hB, wB) = _read_points_from_image("./icp/test_B_1_no_scale.png")
@@ -123,14 +125,14 @@ def main():
     B3 = to3(B2)
 
     A3 = reduce_points(A3, factor=8)
-    B3 = reduce_points(B3, factor=8)
+    B3 = reduce_points(B3, factor=32)
 
     # Use a generous neighbor threshold in pixel units (max image dimension)
     neighbor_threshold = 4000
 
-    suggested_s = np.diag([.42, .42, 1])
+    suggested_s = np.diag([.39, .39, 1])
 
-    theta = np.deg2rad(20)
+    theta = np.deg2rad(10)
     c, s = np.cos(theta), np.sin(theta)
     Rz = np.array([
         [c, -s, 0],
@@ -142,8 +144,14 @@ def main():
     suggested_trans = suggested_s @ suggested_R
     suggested_t = np.array([600, 250, 0])
 
+    # end = time.time()
+    # print(f"Data preparation time: {end - start:.4f} seconds")
+
     # Estimate R, t using uav
     R, t = uav(A3, B3, B_w = wB, B_h = hB, neighbor_threshold=neighbor_threshold, max_it=10, max_tol=1e-2, suggested_Rs=suggested_trans, suggested_t=suggested_t)
+
+    # end2 = time.time()
+    # print(f"UAV computation time: {end2 - end:.4f} seconds")
 
     # 5) Transform B and bring back to 2D for rendering
     B3_aligned = B3 @ R + t
@@ -164,8 +172,14 @@ def main():
     print("R =\n", R)
     print("t = ", t)
 
+    # end3 = time.time()
+    # print(f"Total time: {end3 - end2:.4f} seconds")
+
 # def match_fundus()
 
 
 if __name__ == "__main__":
+    start = time.time()
     main()
+    end = time.time()
+    print(f"Total execution time: {end - start:.4f} seconds")
