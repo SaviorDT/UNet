@@ -56,7 +56,6 @@ def render_points(pts: np.ndarray, path: str, img_size: Tuple[int, int] = (512, 
     img[py, px] = 255
     _write_png(img, path)
 
-
 def _read_points_from_image(path: str, threshold: int = 127) -> tuple[np.ndarray, tuple[int, int]]:
     """Read a PNG (grayscale or RGB/RGBA) and extract white pixels as points.
     Returns (points (N,2) in x-right, y-up coords, (H, W)).
@@ -118,19 +117,19 @@ def main():
     # start = time.time()
     # Read points from test_A.png and test_B.png
     A2, (hA, wA) = _read_points_from_image("./icp/test_A.png")
-    B2, (hB, wB) = _read_points_from_image("./icp/test_B_1_no_scale.png")
+    B2, (hB, wB) = _read_points_from_image("./icp/test_B.png")
 
     # Lift to 3D with z=1 to use uav
     A3 = to3(A2)
     B3 = to3(B2)
 
-    A3 = reduce_points(A3, factor=8)
-    B3 = reduce_points(B3, factor=32)
+    A3 = reduce_points(A3, factor=4)
+    B3 = reduce_points(B3, factor=4)
 
     # Use a generous neighbor threshold in pixel units (max image dimension)
     neighbor_threshold = 4000
 
-    suggested_s = np.diag([.39, .39, 1])
+    suggested_s = np.diag([.42, .42, 1])
 
     theta = np.deg2rad(10)
     c, s = np.cos(theta), np.sin(theta)
@@ -142,19 +141,19 @@ def main():
 
     suggested_R = Rz @ np.diag([-1, 1, 1])
     suggested_trans = suggested_s @ suggested_R
-    suggested_t = np.array([600, 250, 0])
+    suggested_t = np.array([400, 100, 0])
 
     # end = time.time()
     # print(f"Data preparation time: {end - start:.4f} seconds")
 
     # Estimate R, t using uav
-    R, t = uav(A3, B3, B_w = wB, B_h = hB, neighbor_threshold=neighbor_threshold, max_it=10, max_tol=1e-2, suggested_Rs=suggested_trans, suggested_t=suggested_t)
+    R, t = uav(A3, B3, B_w = wB, B_h = hB, neighbor_threshold=neighbor_threshold, max_it=500, max_tol=1e-2, suggested_Rs=suggested_trans, suggested_t=suggested_t)
 
     # end2 = time.time()
     # print(f"UAV computation time: {end2 - end:.4f} seconds")
 
     # 5) Transform B and bring back to 2D for rendering
-    B3_aligned = B3 @ R + t
+    B3_aligned = to3(B2) @ R + t
     # B2_aligned = (R @ B2.T).T + t
 
 
@@ -164,8 +163,8 @@ def main():
     
     render_points(B3_aligned, "./icp/AB.png",img_size=(hA, wA))
     # Overlay A2 (red) and B3_aligned (green)
-    render_overlay(A3, B3 @ suggested_trans + suggested_t, np.empty((0, 2)), "./icp/ABO.png", img_size=(hA, wA))
-    render_overlay(A3, np.empty((0, 2)), B3_aligned, "./icp/ABN.png", img_size=(hA, wA))
+    render_overlay(A2, to3(B2) @ suggested_trans + suggested_t, np.empty((0, 2)), "./icp/ABO.png", img_size=(hA, wA))
+    render_overlay(A2, np.empty((0, 2)), B3_aligned, "./icp/ABN.png", img_size=(hA, wA))
 
     # Print results
     np.set_printoptions(precision=4, suppress=True)
@@ -179,7 +178,7 @@ def main():
 
 
 if __name__ == "__main__":
-    start = time.time()
+    # start = time.time()
     main()
-    end = time.time()
-    print(f"Total execution time: {end - start:.4f} seconds")
+    # end = time.time()
+    # print(f"Total execution time: {end - start:.4f} seconds")

@@ -22,9 +22,13 @@ def uav(A_pts_origin: np.ndarray, B_pts_origin: np.ndarray, B_w: float, B_h: flo
     A_pts = A_pts_origin.copy()
     kd_tree_A = KDTree(A_pts)
 
+    skip_threshold = 0
+    match_threshold = 0
+
+    skipped = 0
     for j in range(len(RS_trans)):
-        if j % 100 == 0:
-            print("it", j, "of", len(RS_trans))
+        if j % 100 == 0 and j > 0:
+            print("it", j, "of", len(RS_trans), ", skipped", skipped)
         # start_time = time.time()
 
         RS = RS_trans[j]
@@ -32,7 +36,8 @@ def uav(A_pts_origin: np.ndarray, B_pts_origin: np.ndarray, B_w: float, B_h: flo
         B_pts = B_pts_origin @ RS.T + t
 
         paired_A, paired_B = _search_pairs(kd_tree_A, A_pts, B_pts, 10)
-        if len(paired_B) < len(B_pts) * .85:
+        if len(paired_B) < len(B_pts) * skip_threshold:
+            skipped += 1
             # print("it", j, "skipped")
             continue
 
@@ -56,7 +61,7 @@ def uav(A_pts_origin: np.ndarray, B_pts_origin: np.ndarray, B_w: float, B_h: flo
         # time_C = time.time()
         # print(f"Pair search took {time_C - time_B:.6f} seconds")
         # print("it", j, "of", len(RS_trans), ", final score:", len(paired_A), "/", len(A_pts))
-        if len(paired_B) >= len(B_pts) * .6:
+        if len(paired_B) >= len(B_pts) * match_threshold:
             return RS @ suggested_Rs, RS @ suggested_t + t.reshape(3)
 
     # raise ValueError("UAV did not converge")
