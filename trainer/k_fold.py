@@ -48,9 +48,9 @@ def train_kfold(model_type="UNet", k_fold=5, times=3, dataset="Glas", folder="./
     # 清理並重置 GPU 狀態
     if torch.cuda.is_available():
         # 完全重置 CUDA 環境
-        torch.cuda.empty_cache()
-        torch.cuda.reset_max_memory_allocated()
-        torch.cuda.reset_peak_memory_stats()
+        # torch.cuda.empty_cache()
+        # torch.cuda.reset_max_memory_allocated()
+        # torch.cuda.reset_peak_memory_stats()
         
         # 設置 GPU 記憶體分配器
         # try:
@@ -86,9 +86,9 @@ def train_kfold(model_type="UNet", k_fold=5, times=3, dataset="Glas", folder="./
         
         # 強制清理 GPU 記憶體並重置統計資訊
         if torch.cuda.is_available():
-            torch.cuda.empty_cache()
-            torch.cuda.reset_max_memory_allocated()
-            torch.cuda.reset_peak_memory_stats()
+            # torch.cuda.empty_cache()
+            # torch.cuda.reset_max_memory_allocated()
+            # torch.cuda.reset_peak_memory_stats()
             print(f"訓練前 GPU 記憶體狀態: {torch.cuda.memory_allocated()/1024**3:.2f} GB / {torch.cuda.max_memory_allocated()/1024**3:.2f} GB")
         
         # 訓練模型 (添加自動批次大小縮放)
@@ -108,8 +108,8 @@ def train_kfold(model_type="UNet", k_fold=5, times=3, dataset="Glas", folder="./
         print(f"訓練完成！耗時: {train_time:.2f} 秒")
         
         # 評估模型（先清理記憶體）
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
+        # if torch.cuda.is_available():
+        #     torch.cuda.empty_cache()
         
         # 重啟 Python 垃圾回收
         gc.collect()
@@ -171,8 +171,8 @@ def train_kfold(model_type="UNet", k_fold=5, times=3, dataset="Glas", folder="./
         gc.collect()  # 強制垃圾回收
         
         if torch.cuda.is_available():
-            torch.cuda.empty_cache()
-            torch.cuda.ipc_collect()  # 清理进程间通信的缓存
+            # torch.cuda.empty_cache()
+            # torch.cuda.ipc_collect()  # 清理进程间通信的缓存
             
             # 檢查 CUDA 記憶體分配情況
             alloc = torch.cuda.memory_allocated()/1024**3
@@ -181,9 +181,9 @@ def train_kfold(model_type="UNet", k_fold=5, times=3, dataset="Glas", folder="./
             # 如果記憶體釋放不完全，嘗試重置 CUDA
             if alloc > 0.1:  # 如果仍有超過 100MB 未釋放
                 print("記憶體未完全釋放，嘗試重置 CUDA...")
-                torch.cuda.empty_cache()
-                torch.cuda.reset_peak_memory_stats()
-                torch.cuda.reset_accumulated_memory_stats()
+                # torch.cuda.empty_cache()
+                # torch.cuda.reset_peak_memory_stats()
+                # torch.cuda.reset_accumulated_memory_stats()
     
     # 將結果轉換為DataFrame並保存
     results_df = pd.DataFrame(all_results)
@@ -229,8 +229,8 @@ def train_kfold(model_type="UNet", k_fold=5, times=3, dataset="Glas", folder="./
         print(f"F1: {best_metrics['f1']:.4f}")
         
         # 清理記憶體
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
+        # if torch.cuda.is_available():
+        #     torch.cuda.empty_cache()
     
     return results_df, best_model_path
 
@@ -292,8 +292,8 @@ def evaluate_model(model, data, device, batch_size=8):
                     # 釋放內存
                     chunk_predictions.append(batch_predictions)
                     del batch_images, outputs
-                    if torch.cuda.is_available():
-                        torch.cuda.empty_cache()
+                    # if torch.cuda.is_available():
+                    #     torch.cuda.empty_cache()
             
             # 合併批次結果
             chunk_result = np.concatenate(chunk_predictions, axis=0)
@@ -303,9 +303,9 @@ def evaluate_model(model, data, device, batch_size=8):
             del chunk_images, images_tensor, eval_dataset, eval_loader, chunk_predictions
             
             # 強制垃圾回收
-            gc.collect()
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
+            # gc.collect()
+            # if torch.cuda.is_available():
+            #     torch.cuda.empty_cache()
         
         # 合併所有區塊結果
         predictions = np.concatenate(predictions_list, axis=0)

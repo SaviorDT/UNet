@@ -63,7 +63,7 @@ def load_data(folder: str, target_size=(128, 128), test_only=False, train_ratio=
         print(f"錯誤: {img_folder} 不存在")
         return (np.array([]), np.array([])), (np.array([]), np.array([])), (np.array([]), np.array([]))
     
-    if not os.path.exists(mask_folder):
+    if not test_only and not os.path.exists(mask_folder):
         print(f"錯誤: {mask_folder} 不存在")
         return (np.array([]), np.array([])), (np.array([]), np.array([])), (np.array([]), np.array([]))
     
@@ -71,7 +71,7 @@ def load_data(folder: str, target_size=(128, 128), test_only=False, train_ratio=
     
     # 載入所有圖像和遮罩
     images = load_images_from_folder(img_folder, target_size)
-    masks = load_masks_from_folder(mask_folder, target_size)
+    masks = load_masks_from_folder(mask_folder, target_size) if not test_only else np.array([np.zeros((target_size[1], target_size[0], 1))]*len(images))
     
     print(f"圖像數量: {len(images)}, 遮罩數量: {len(masks)}")
     
@@ -125,7 +125,7 @@ def load_data_with_random_split(folder: str, target_size=(128, 128), test_only=F
     Args:
         folder: 數據集根目錄路徑 (例如: "./data/my_proj1")
         target_size: 目標圖像大小 (height, width)
-        test_only: 沒有作用，因為讀取速度很快，不需要只讀取測試數據，僅保留兼容性
+        test_only: 只載入 test 數據
         train_ratio: 訓練集比例 (默認 0.7)
         val_ratio: 驗證集比例 (默認 0.2)，剩餘的作為測試集
         random_seed: 隨機種子，確保可重現性
@@ -142,7 +142,7 @@ def load_data_with_random_split(folder: str, target_size=(128, 128), test_only=F
         print(f"錯誤: {img_folder} 不存在")
         return (np.array([]), np.array([])), (np.array([]), np.array([])), (np.array([]), np.array([]))
     
-    if not os.path.exists(mask_folder):
+    if not test_only and not os.path.exists(mask_folder):
         print(f"錯誤: {mask_folder} 不存在")
         return (np.array([]), np.array([])), (np.array([]), np.array([])), (np.array([]), np.array([]))
     
@@ -150,7 +150,7 @@ def load_data_with_random_split(folder: str, target_size=(128, 128), test_only=F
     
     # 載入所有圖像和遮罩
     images = load_images_from_folder(img_folder, target_size)
-    masks = load_masks_from_folder(mask_folder, target_size)
+    masks = load_masks_from_folder(mask_folder, target_size) if not test_only else np.array([np.zeros((target_size[1], target_size[0], 1))]*len(images))
     
     print(f"圖像數量: {len(images)}, 遮罩數量: {len(masks)}")
     

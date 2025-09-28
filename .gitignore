@@ -5,5 +5,7 @@ predictions
 *.pth
 *.txt
 *.csv
+*.jpg
+*.png
 !requirements.txt
 .history

@@ -170,8 +170,8 @@ def train_model(train_data, validation_data, model_type="UNet", epochs=50, batch
             epoch_train_loss += loss.item()
             
             # 釋放一些記憶體
-            if batch_idx % 5 == 0 and torch.cuda.is_available():
-                torch.cuda.empty_cache()
+            # if batch_idx % 5 == 0 and torch.cuda.is_available():
+            #     torch.cuda.empty_cache()
                 
             # 更新進度條
             train_progress.set_postfix({

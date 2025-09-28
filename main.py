@@ -14,9 +14,9 @@ def main():
 
     # 配置參數
     MODEL_TYPE = "UNet"  # 可選: "UNet" 或 "LUNeXt"
-    MODE = "k_fold"     # 可選: "train", "test", 或 "k_fold"
+    MODE = "test"     # 可選: "train", "test", 或 "k_fold"
     TEST_SCORE = "traditional"  # 可選: "traditional"，未來可能新增 skeleton 評分方法
-    DATASET = "my_proj1"    # 可選: "ISIC2018" 或 "Glas"
+    DATASET = "my_proj3"    # 可選: "ISIC2018" 或 "Glas"
     DATASET_FOLDER = "./data/" + DATASET  # 數據集根目錄
     if DATASET == "ISIC2018":
         TARGET_SIZE = (128, 128)
@@ -24,8 +24,8 @@ def main():
     elif DATASET == "Glas":
         TARGET_SIZE = (224, 224)
         BATCH_SIZE = 8
-    elif DATASET == "my_proj1":
-        TARGET_SIZE = (480, 480)
+    elif DATASET == "my_proj1" or DATASET == "my_proj3":
+        TARGET_SIZE = (640, 480)
         BATCH_SIZE = 2
     elif DATASET == "my_proj2":
         TARGET_SIZE = (540, 360) # my_proj2 會自動將圖片裁切為 16 的倍數，讓 unet 順利運作
