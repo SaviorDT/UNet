@@ -4,6 +4,17 @@ import numpy as np
 from main import render_points, render_overlay
 from uav import uav
 
+"""
+    讀取 icp/fundus/ 資料夾中的眼底影像，及 icp/predictions/ 資料夾中的預測影像，
+    使用 uav 方法對齊血管點，並將對齊結果以影像形式保存到 icp/match/ 資料夾中
+    命名格式：
+    icp/fundus/s001_fundus.jpg
+    icp/predictions/s001_t00628f00.png
+    輸出格式：
+    icp/match/s001_t00628f00_overlay.png
+    其中 s001 為眼底影像編號，t00628f00 為預測影像編號
+"""
+
 def _read_points(path: str, threshold: int = 127, inverse: bool = True, cut: int = 540, three_d: bool = True) -> np.ndarray:
     """
     從眼底影像讀取血管點座標。
