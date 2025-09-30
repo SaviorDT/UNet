@@ -4,6 +4,8 @@ import numpy as np
 from main import render_points, render_overlay, reduce_points
 from uav import uav
 from skimage.morphology import skeletonize
+from scipy.ndimage import label
+import time
 
 """
     讀取 icp/fundus/ 資料夾中的眼底影像，及 icp/predictions/ 資料夾中的預測影像，
@@ -18,21 +20,32 @@ from skimage.morphology import skeletonize
 
 def preprocess_image(arr: np.ndarray) -> np.ndarray:
     """
-    對輸入的灰階影像陣列進行預處理，包含 skeletonize（消除中間的那顆球）以及去除左邊框框的痕跡。
+    對輸入的灰階影像陣列進行預處理，包含 skeletonize（消除中間的那顆球）、去除左邊框框的痕跡，以及去除太小的點。
 
     Args:
-        arr (np.ndarray): 輸入的灰階影像陣列。
+        arr (np.ndarray): 輸入的黑白影像陣列，元素應為 0 或 1。
 
     Returns:
         np.ndarray: 預處理後的二值化影像陣列。
     """
-    # 二值化
-
+    # skeletonize
     skeleton = skeletonize(arr)
     if skeleton.shape[0] == 640:
         skeleton[125:130, : ] = 0
-    return skeleton
+    elif skeleton.shape[0] == 540:
+        skeleton[133:187, 120:169 ] = 0
+
+    # Remove small objects
+    min_size = 10
     
+    structure = np.ones((3, 3), dtype=np.uint)
+    labeled_image, _ = label(skeleton, structure=structure)
+    sizes = np.bincount(labeled_image.ravel())
+    mask = sizes >= min_size
+    mask[0] = 0
+    cleaned_image = mask[labeled_image]
+
+    return cleaned_image
 
 def _read_points(path: str, threshold: int = 127, inverse: bool = True, cut: int = 540, three_d: bool = True) -> np.ndarray:
     """
@@ -66,8 +79,8 @@ def _read_points(path: str, threshold: int = 127, inverse: bool = True, cut: int
     return points
 
 def _get_initial_RT():
-    suggested_s = np.diag([.36, .36, 1])
-    theta = np.deg2rad(0)
+    suggested_s = np.diag([.48, .48, 1])
+    theta = np.deg2rad(5)
     c, s = np.cos(theta), np.sin(theta)
     Rz = np.array([
         [c, -s, 0],
@@ -77,12 +90,12 @@ def _get_initial_RT():
 
     suggested_R = Rz @ np.diag([-1, 1, 1])
     R = suggested_s @ suggested_R
-    t = np.array([350, 150, 0])
+    t = np.array([415, 15, 0])
 
     return R, t
 
 def main():
-    fundus_name = "s003"
+    fundus_name = "s013"
     fundus_path = f"./icp/fundus/{fundus_name}_fundus.jpg"
     image_path_filter = f"./icp/predictions/{fundus_name}_*.png"
     image_path = sorted(glob.glob(image_path_filter))
@@ -90,24 +103,27 @@ def main():
     fundus_points = _read_points(fundus_path, threshold=127, inverse=True, cut=540, three_d=True)
     cal_fundus_points = reduce_points(fundus_points, factor=1)
     # image_points = []
+    render_points(cal_fundus_points, './icp/test_A.png', img_size=(360, 540))
 
     R, t = _get_initial_RT()
 
     for idx, path in enumerate(image_path):
         print(f"{idx+1}/{len(image_path)} Processing {path}...")
         pts = _read_points(path, threshold=127, inverse=False, cut=0, three_d=True)
-        cal_pts = reduce_points(pts, factor=4)
+        cal_pts = reduce_points(pts, factor=2)
 
-        # if idx == 1:
-        #     render_points(pts, f'./icp/test_B.png', img_size=(480, 640))
+        if idx == 0:
+            render_points(pts, f'./icp/test_B.png', img_size=(480, 640))
 
         # image_points.append(pts)
         R, t = uav(cal_fundus_points, cal_pts, B_w = 640, B_h = 480, neighbor_threshold=4000, max_it=10, max_tol=1e-2, suggested_Rs=R, suggested_t=t)
         render_overlay(fundus_points, pts @ R + t, np.empty((0, 2)), f"./icp/match/{path.split('/')[-1][:-4]}_overlay.png", img_size=(360, 540))
     
-    # render_points(fundus_points, './icp/test_A.png', img_size=(360, 540))
     # render_points(image_points[0], './icp/test_B.png', img_size=(480, 640))
     
 
 if __name__ == "__main__":
+    start = time.time()
     main()
+    end = time.time()
+    print(f"Total time: {end - start:.4f} seconds")

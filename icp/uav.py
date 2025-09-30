@@ -23,7 +23,7 @@ def uav(A_pts_origin: np.ndarray, B_pts_origin: np.ndarray, B_w: float, B_h: flo
     kd_tree_A = KDTree(A_pts)
 
     skip_threshold = .7
-    match_threshold = .65
+    match_threshold = .5
     minimum_scale = .25 * .25
 
     skipped = 0
@@ -67,7 +67,7 @@ def uav(A_pts_origin: np.ndarray, B_pts_origin: np.ndarray, B_w: float, B_h: flo
         if -minimum_scale <= np.linalg.det(RS @ suggested_Rs) <= minimum_scale:
             continue
         if len(paired_B) >= len(B_pts) * match_threshold:
-            print("UAV converged at iteration", j+1, "with score", len(paired_B), "/", len(B_pts))
+            print("UAV converged at iteration", j+1, "with score", len(paired_B) / len(B_pts))
             return RS @ suggested_Rs, RS @ suggested_t + t.reshape(3)
 
     # raise ValueError("UAV did not converge")
@@ -134,14 +134,14 @@ def _search_pairs(A_tree: KDTree, A_pts: np.ndarray, B_pts: np.ndarray, neighbor
 
 
 def _get_transforms(cx, cy) -> tuple[np.ndarray, np.ndarray]:
-    candidate_theta = [np.deg2rad(0), np.deg2rad(10), np.deg2rad(-10), np.deg2rad(20), np.deg2rad(-20), np.deg2rad(30), np.deg2rad(-30), np.deg2rad(40), np.deg2rad(-40)]
-    candidate_tx = [0, 15, -15, 30, -30, 45, -45, 60, -60, 75, -75, 90, -90, 105, -105, 120, -120]
-    candidate_ty = [0, 15, -15, 30, -30, 45, -45, 60, -60, 75, -75, 90, -90, 105, -105, 120, -120]
-    candidate_scale = [1, 0.95, 1.05, 0.9, 1.1]
-    # candidate_theta = [np.deg2rad(0), np.deg2rad(10), np.deg2rad(-10), 0]
-    # candidate_tx = [0, 15, -15, 30, -30, 45, -45, 0]
-    # candidate_ty = [0, 15, -15, 30, -30, 45, -45, 0]
-    # candidate_scale = [1, 0.9, 1.1, 1]
+    # candidate_theta = [np.deg2rad(0), np.deg2rad(10), np.deg2rad(-10), np.deg2rad(20), np.deg2rad(-20), np.deg2rad(30), np.deg2rad(-30), np.deg2rad(40), np.deg2rad(-40)]
+    # candidate_tx = [0, 15, -15, 30, -30, 45, -45, 60, -60, 75, -75, 90, -90, 105, -105, 120, -120]
+    # candidate_ty = [0, 15, -15, 30, -30, 45, -45, 60, -60, 75, -75, 90, -90, 105, -105, 120, -120]
+    # candidate_scale = [1, 0.95, 1.05, 0.9, 1.1]
+    candidate_theta = [np.deg2rad(0), np.deg2rad(10), np.deg2rad(-10)]
+    candidate_tx = [0, 15, -15, 30, -30]
+    candidate_ty = [0, 15, -15, 30, -30]
+    candidate_scale = [1, 0.9, 1.1]
 
     # candidate_theta = [0]
     # candidate_tx = [0]

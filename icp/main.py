@@ -129,7 +129,7 @@ def main():
     # Use a generous neighbor threshold in pixel units (max image dimension)
     neighbor_threshold = 4000
 
-    suggested_s = np.diag([.36, .36, 1])
+    suggested_s = np.diag([.55, .55, 1])
 
     theta = np.deg2rad(0)
     c, s = np.cos(theta), np.sin(theta)
@@ -139,9 +139,9 @@ def main():
         [0,  0, 1]
     ], dtype=np.float64)
 
-    suggested_R = Rz @ np.diag([1, 1, 1])
+    suggested_R = Rz @ np.diag([-1, 1, 1])
     suggested_trans = suggested_s @ suggested_R
-    suggested_t = np.array([100, 150, 0])
+    suggested_t = np.array([430, 50, 0])
 
     # end = time.time()
     # print(f"Data preparation time: {end - start:.4f} seconds")
