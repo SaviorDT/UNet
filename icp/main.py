@@ -2,7 +2,7 @@ import time
 import numpy as np
 from typing import Tuple
 from uav import uav
-import imageio
+import imageio.v2 as imageio
 
 def _write_png(img: np.ndarray, path: str) -> None:
     """Write a 2D uint8 grayscale image to a PNG file using imageio."""
@@ -123,15 +123,15 @@ def main():
     A3 = to3(A2)
     B3 = to3(B2)
 
-    A3 = reduce_points(A3, factor=4)
-    B3 = reduce_points(B3, factor=4)
+    A3 = reduce_points(A3, factor=8)
+    B3 = reduce_points(B3, factor=40)
 
     # Use a generous neighbor threshold in pixel units (max image dimension)
     neighbor_threshold = 4000
 
-    suggested_s = np.diag([.42, .42, 1])
+    suggested_s = np.diag([.36, .36, 1])
 
-    theta = np.deg2rad(10)
+    theta = np.deg2rad(0)
     c, s = np.cos(theta), np.sin(theta)
     Rz = np.array([
         [c, -s, 0],
@@ -139,15 +139,15 @@ def main():
         [0,  0, 1]
     ], dtype=np.float64)
 
-    suggested_R = Rz @ np.diag([-1, 1, 1])
+    suggested_R = Rz @ np.diag([1, 1, 1])
     suggested_trans = suggested_s @ suggested_R
-    suggested_t = np.array([400, 100, 0])
+    suggested_t = np.array([100, 150, 0])
 
     # end = time.time()
     # print(f"Data preparation time: {end - start:.4f} seconds")
 
     # Estimate R, t using uav
-    R, t = uav(A3, B3, B_w = wB, B_h = hB, neighbor_threshold=neighbor_threshold, max_it=500, max_tol=1e-2, suggested_Rs=suggested_trans, suggested_t=suggested_t)
+    R, t = uav(A3, B3, B_w = wB, B_h = hB, neighbor_threshold=neighbor_threshold, max_it=10, max_tol=1e-2, suggested_Rs=suggested_trans, suggested_t=suggested_t)
 
     # end2 = time.time()
     # print(f"UAV computation time: {end2 - end:.4f} seconds")

@@ -22,8 +22,9 @@ def uav(A_pts_origin: np.ndarray, B_pts_origin: np.ndarray, B_w: float, B_h: flo
     A_pts = A_pts_origin.copy()
     kd_tree_A = KDTree(A_pts)
 
-    skip_threshold = 0
-    match_threshold = 0
+    skip_threshold = .7
+    match_threshold = .65
+    minimum_scale = .25 * .25
 
     skipped = 0
     for j in range(len(RS_trans)):
@@ -36,6 +37,7 @@ def uav(A_pts_origin: np.ndarray, B_pts_origin: np.ndarray, B_w: float, B_h: flo
         B_pts = B_pts_origin @ RS.T + t
 
         paired_A, paired_B = _search_pairs(kd_tree_A, A_pts, B_pts, 10)
+        # print("it", j, "initial score:", len(paired_B), "/", len(B_pts))
         if len(paired_B) < len(B_pts) * skip_threshold:
             skipped += 1
             # print("it", j, "skipped")
@@ -57,15 +59,20 @@ def uav(A_pts_origin: np.ndarray, B_pts_origin: np.ndarray, B_w: float, B_h: flo
         # print(f"Iterations {i+1} took {time_B - time_A:.6f} seconds")
 
         paired_A, paired_B = _search_pairs(kd_tree_A, A_pts, B_pts, 3)
+        # print("it", j, "final score:", len(paired_B), "/", len(B_pts), "det(RS):", np.linalg.det(RS @ suggested_Rs))
 
         # time_C = time.time()
         # print(f"Pair search took {time_C - time_B:.6f} seconds")
         # print("it", j, "of", len(RS_trans), ", final score:", len(paired_A), "/", len(A_pts))
+        if -minimum_scale <= np.linalg.det(RS @ suggested_Rs) <= minimum_scale:
+            continue
         if len(paired_B) >= len(B_pts) * match_threshold:
+            print("UAV converged at iteration", j+1, "with score", len(paired_B), "/", len(B_pts))
             return RS @ suggested_Rs, RS @ suggested_t + t.reshape(3)
 
     # raise ValueError("UAV did not converge")
-    return RS @ suggested_Rs, RS @ suggested_t + t.reshape(3)
+    # return RS @ suggested_Rs, RS @ suggested_t + t.reshape(3)
+    return suggested_Rs, suggested_t
 
 def uav_util(A_pts: np.ndarray, B_pts: np.ndarray) -> tuple[np.ndarray, np.array]:
     """Compute the UAV metric between two point clouds.
@@ -130,7 +137,11 @@ def _get_transforms(cx, cy) -> tuple[np.ndarray, np.ndarray]:
     candidate_theta = [np.deg2rad(0), np.deg2rad(10), np.deg2rad(-10), np.deg2rad(20), np.deg2rad(-20), np.deg2rad(30), np.deg2rad(-30), np.deg2rad(40), np.deg2rad(-40)]
     candidate_tx = [0, 15, -15, 30, -30, 45, -45, 60, -60, 75, -75, 90, -90, 105, -105, 120, -120]
     candidate_ty = [0, 15, -15, 30, -30, 45, -45, 60, -60, 75, -75, 90, -90, 105, -105, 120, -120]
-    candidate_scale = [1, 1.1, 0.9, 1.2, 0.8]
+    candidate_scale = [1, 0.95, 1.05, 0.9, 1.1]
+    # candidate_theta = [np.deg2rad(0), np.deg2rad(10), np.deg2rad(-10), 0]
+    # candidate_tx = [0, 15, -15, 30, -30, 45, -45, 0]
+    # candidate_ty = [0, 15, -15, 30, -30, 45, -45, 0]
+    # candidate_scale = [1, 0.9, 1.1, 1]
 
     # candidate_theta = [0]
     # candidate_tx = [0]
